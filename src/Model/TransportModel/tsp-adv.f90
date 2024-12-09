@@ -38,6 +38,7 @@ module TspAdvModule
     procedure, private :: advtvd_bd
     procedure, private :: advqtvd_experimental
     procedure, private :: compute_cell_gradient
+    procedure, private :: compute_cell_gradient_2dorder
     procedure, private :: node_distance
     procedure :: adv_weight
     procedure :: advtvd
@@ -196,6 +197,7 @@ contains
   !!  Method to calculate coefficients and fill amat and rhs.
   !<
   subroutine adv_fc(this, nodes, matrix_sln, idxglo, cnew, rhs)
+    use TdisModule, only: kstp, kper, delt
     ! -- modules
     ! -- dummy
     class(TspAdvType) :: this
@@ -204,33 +206,63 @@ contains
     integer(I4B), intent(in), dimension(:) :: idxglo
     real(DP), intent(in), dimension(:) :: cnew
     real(DP), dimension(:), intent(inout) :: rhs
+    real(DP), allocatable, dimension(:) :: cnew2, rhs2, rhs2_old
     ! -- local
     integer(I4B) :: n, m, idiag, ipos
-    real(DP) :: omega, qnm
-    !
-    ! -- Calculate advection terms and add to solution rhs and hcof.  qnm
-    !    is the volumetric flow rate and has dimensions of L^/T.
-    do n = 1, nodes
-      if (this%ibound(n) == 0) cycle
-      idiag = this%dis%con%ia(n)
-      do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
-        if (this%dis%con%mask(ipos) == 0) cycle
-        m = this%dis%con%ja(ipos)
-        if (this%ibound(m) == 0) cycle
-        qnm = this%fmi%gwfflowja(ipos) * this%eqnsclfac
-        omega = this%adv_weight(this%iadvwt, ipos, n, m, qnm)
-        call matrix_sln%add_value_pos(idxglo(ipos), qnm * (DONE - omega))
-        call matrix_sln%add_value_pos(idxglo(idiag), qnm * omega)
-      end do
-    end do
-    !
-    ! -- TVD
-    if (this%iadvwt >= 2) then
+    real(DP) :: omega, qnm, q, dt
+    integer(I4B) time_idx
+    real(DP), dimension(3):: rk3_K_weights =(/0.0_dp, 0.5_dp, 2.0_dp /)
+    real(DP), dimension(3):: rk3_rhs_weights =(/1.0_dp/6.0_dp, 4.0_dp/6.0_dp, 1.0_dp/6.0_dp /)
+    real(DP), dimension(3):: rk3_rhs_old_weights =(/0.0_dp, 0.0_dp, -1.0_dp  /)
+
+    dt = delt
+    allocate(rhs2(nodes))
+    rhs2_old = rhs2
+    do time_idx = 1, 3
+      cnew2 = cnew + delt * (rk3_K_weights(time_idx) * rhs2 + rk3_rhs_old_weights(time_idx) * rhs2_old)
+      rhs2_old = rhs2
+      rhs2 = 0
+      !
+      ! -- Calculate advection terms and add to solution rhs and hcof.  qnm
+      !    is the volumetric flow rate and has dimensions of L^/T.
       do n = 1, nodes
         if (this%ibound(n) == 0) cycle
-        call this%advtvd(n, cnew, rhs)
+        idiag = this%dis%con%ia(n)
+        do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
+          if (this%dis%con%mask(ipos) == 0) cycle
+          m = this%dis%con%ja(ipos)
+          if (m <= n) cycle
+          if (this%ibound(m) == 0) cycle
+          qnm = this%fmi%gwfflowja(ipos) * this%eqnsclfac
+          omega = this%adv_weight(this%iadvwt, ipos, n, m, qnm)
+          ! call matrix_sln%add_value_pos(idxglo(ipos), qnm * (DONE - omega))
+          ! call matrix_sln%add_value_pos(idxglo(idiag), qnm * omega)
+          if (qnm > 0) then
+            q = qnm * cnew2(m)
+          else
+            q = qnm * cnew2(n)
+          end if
+          rhs2(n) = rhs2(n) - q
+          rhs2(m) = rhs2(m) + q
+
+        end do
       end do
-    end if
+      !
+      ! -- TVD
+      if (this%iadvwt >= 2) then
+        do n = 1, nodes
+          if (this%ibound(n) == 0) cycle
+          call this%advtvd(n, cnew2, rhs2)
+        end do
+      end if
+      
+      ! ! Heuns method
+      ! cnew2 = cnew + delt * rhs2
+      ! rhs = rhs + 0.5_dp * rhs2
+
+      ! Runge-Kutta 3th
+      rhs = rhs + rk3_rhs_weights(time_idx) * rhs2
+    end do
   end subroutine adv_fc
 
   !> @brief  Calculate TVD
@@ -350,12 +382,15 @@ contains
     end if
   end function advqtvd
 
-  function limiter(this, r) result(theta)
+  function limiter(this, r, dplus, dmin) result(theta)
     ! -- return
     real(DP) :: theta ! limited slope
     ! -- dummy
     class(TspAdvType) :: this
     real(DP) :: r ! ratio of successive gradients
+    real(DP), OPTIONAL :: dplus, dmin
+    ! -- local
+    real(DP) :: sign_dplus, H3, H3L, eta, alpha, cellsize, eps, beta, gamma, H3L_2
 
     select case (this%iadvwt)
     case (2) ! van Leer
@@ -368,7 +403,35 @@ contains
     case (5) ! van Albada
       theta = max(0.0_dp, (r * r + r) / (r * r + 1.0_dp))
     case (6) ! Koren modified
-        theta = max(0.0_dp, min(4.0_dp * r * r + r, 1.0_dp/3.0_dp + 2.0_dp/3.0_dp * r, 2.0_dp))
+        ! theta = max(0.0_dp, min(4.0_dp * r * r + r, 1.0_dp/3.0_dp + 2.0_dp/3.0_dp * r, 2.0_dp))
+      if (.not. present(dplus)) then
+        theta = DZERO
+      else  !-- 3th order
+        sign_dplus = sign(1.0_dp, dplus)
+        eps = 1e-6
+
+        alpha = 2.0_dp
+        cellsize = 17.5438596491228
+
+        eta = sqrt(dmin**2 + dplus**2) / ((sqrt(5.0_dp/2.0_dp) * alpha * cellsize))
+        H3 = (2.0_dp + r) / 3.0_dp
+        H3L = sign_dplus * max(0.0_dp, min(sign_dplus * H3, &
+          max(-sign_dplus * dmin, min(2.0_dp * sign_dplus * dmin, sign_dplus * H3, 1.5_dp * DABS(dplus)))))
+
+        alpha = 1.0_dp
+        beta = 2.0_dp
+        gamma = 1.5_dp
+        H3L_2 = max(0.0_dp, min(H3, max(-alpha * r, min(beta * r, H3, gamma))))
+        if (eta < 0.01_dp - eps) then
+          theta = H3
+        else if (eta > 0.01_dp + eps) then
+          theta = H3L_2
+        else
+          theta = 0.5_dp * ((1.0_dp - (eta - 1.0_dp)/eps) * H3 + (1.0_dp - (eta + 1.0_dp)/eps) * H3L_2)
+        end if
+        theta = H3L_2
+        ! theta = theta / dplus
+      end if
     CASE DEFAULT
       theta = DZERO
     end select
@@ -386,10 +449,12 @@ contains
     real(DP), dimension(:), intent(in) :: cnew
     ! -- local
     integer(I4B) :: iup, idn, isympos
-    real(DP) :: qnm
-    real(DP), dimension(3) :: grad_c, dnm
-    real(DP) :: smooth, alimiter, beta
+    real(DP) :: qnm, cup2
+    real(DP), dimension(3) :: grad_c, dnm, grad1_c, grad2_c, grad2xyz_c, dxyz, dnu
+    real(DP) :: smooth, alimiter, beta, smooth2, smooth3
     real(DP) :: cl1, cl2, rel_dist, c_virtual
+    real(DP) :: dplus, dmin
+    real(DP) :: dxplus, dxmin_half, dxplus_half
     integer(I4B) :: nnodes, number_connections
     real(DP), allocatable :: polyverts(:, :)
 
@@ -423,27 +488,54 @@ contains
     ! nnodes = size(polyverts, dim = 2)
     ! number_connections = this%dis%con%ia(iup + 1) - this%dis%con%ia(iup) - 1
     ! if (number_connections < nnodes) return
+
+    ! call this%fmi%dis%get_polyverts(idn, polyverts)
+    ! nnodes = size(polyverts, dim = 2)
+    ! number_connections = this%dis%con%ia(idn + 1) - this%dis%con%ia(idn) - 1
+    ! if (number_connections < nnodes) return
+
     !
     ! -- Compute cell concentration gradient
     call this%compute_cell_gradient(iup, cnew, grad_c)
+    call this%compute_cell_gradient_2dorder(iup, cnew, grad1_c, grad2_c, grad2xyz_c)
     !
     ! -- Compute smoothness factor
     dnm = this%node_distance(iup, idn)
-   smooth = 2.0_dp * (dot_product(grad_c, dnm)) / (cnew(idn) - cnew(iup)) - 1.0_dp
+    smooth = 2.0_dp * (dot_product(grad_c, dnm)) / (cnew(idn) - cnew(iup)) - 1.0_dp
     !
     ! -- Correct smoothness factor to prevent negative concentration
     c_virtual = cnew(iup) - smooth * (cnew(idn) - cnew(iup))
     if (c_virtual <= DPREC) then
       smooth = cnew(iup) / (cnew(idn) - cnew(iup))
     end if
-    !
-    ! -- Compute limiter
-    alimiter = this%limiter(smooth)
+
+    dnu = -dnm 
+    dxyz(1) = dnu(1) * dnu(2)
+    dxyz(2) = dnu(2) * dnu(3)
+    dxyz(3) = dnu(3) * dnu(1)
+    cup2 = max(0.0_dp, cnew(iup) + dot_product(grad1_c, dnu) + dot_product(grad2_c, 0.5_dp * dnu**2) &
+      + dot_product(grad2xyz_c, dxyz))
+    smooth2 = (cnew(iup) - cup2)/(cnew(idn) - cnew(iup))
+  
+    c_virtual = cnew(iup) - smooth2 * (cnew(idn) - cnew(iup))
+    if (c_virtual <= DPREC) then
+      smooth2 = cnew(iup) / (cnew(idn) - cnew(iup))
+    end if
     !
     ! -- Compute relative distance to face
     rel_dist = cl1 / (cl1 + cl2)
+    !
+    ! -- Compute limiter
+    dplus = cnew(idn) - cnew(iup)
+    dmin = smooth * dplus
+    dxplus = cl2 * 2.0
+    dxmin = cl2 * 2.0
+    dxplus_half = cl1 + cl2
+    dxmin_half = cl1 + cl2
+    
+    alimiter = this%limiter(smooth, dxmin_half * dplus / dxplus_half, dxplus_half * dmin / dxmin_half)
     ! -- Compute limited flux
-    qtvd = rel_dist * alimiter * qnm * (cnew(idn) - cnew(iup))
+    qtvd = 0.5 * alimiter * qnm * dplus
     qtvd = qtvd * this%eqnsclfac
 
   end function advqtvd_experimental
@@ -463,6 +555,98 @@ contains
     d(3) = z_dir * length
 
   end function node_distance
+
+  subroutine compute_cell_gradient_2dorder(this, n, cnew, grad_c, grad2_c, grad2xyz_c)
+    ! -- dummy
+    class(TspAdvType) :: this
+    integer(I4B), intent(in) :: n
+    real(DP), dimension(:), intent(in) :: cnew
+    real(DP), dimension(3), intent(out) :: grad_c
+    real(DP), dimension(3), intent(out) :: grad2_c
+    real(DP), dimension(3), intent(out) :: grad2xyz_c
+    ! -- local
+    integer(I4B) :: ipos, local_pos, m
+    integer(I4B) :: number_connections
+
+    real(DP), dimension(3) :: dnm
+    real(DP), dimension(:, :), allocatable :: d, d_trans
+    real(DP), dimension(:, :), allocatable :: g, g_inv
+    real(DP), dimension(:, :), allocatable :: grad_op
+    real(DP), dimension(9) :: grad
+
+    real(DP), dimension(:), allocatable :: dc
+
+    number_connections = this%dis%con%ia(n + 1) - this%dis%con%ia(n) - 1
+    if (number_connections == 1) then
+      ! If a cell only has 1 neigbour compute the gradient using finite difference
+      ! This case can happen if a triangle element is located in a cornor of a square domain
+      ! with two sides being domain boundaries
+      ipos = this%dis%con%ia(n) + 1
+      m = this%dis%con%ja(ipos)
+      dnm = this%node_distance(n, m)
+
+      grad_c(1) = (cnew(m) - cnew(n)) / dnm(1)
+      grad_c(2) = (cnew(m) - cnew(n)) / dnm(2)
+      grad_c(3) = (cnew(m) - cnew(n)) / dnm(3)
+
+      grad2_c(1) = 0
+      grad2_c(2) = 0
+      grad2_c(3) = 0
+
+      grad2xyz_c(1) = 0
+      grad2xyz_c(2) = 0
+      grad2xyz_c(3) = 0
+      return
+    end if
+
+    allocate (d(number_connections, 9))
+
+    local_pos = 1
+    do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
+      m = this%dis%con%ja(ipos)
+      dnm = this%node_distance(n, m)
+
+      d(local_pos, 1) = dnm(1)
+      d(local_pos, 2) = dnm(2)
+      d(local_pos, 3) = dnm(3)
+      d(local_pos, 4) = 0.5_dp*dnm(1)**2
+      d(local_pos, 5) = 0.5_dp*dnm(2)**2
+      d(local_pos, 6) = 0.5_dp*dnm(3)**2
+      d(local_pos, 7) = dnm(1)*dnm(2)
+      d(local_pos, 8) = dnm(2)*dnm(3)
+      d(local_pos, 9) = dnm(3)*dnm(1)
+
+      local_pos = local_pos + 1
+    end do
+
+    d_trans = transpose(d)
+    g = matmul(d_trans, d)
+    g_inv = pinv(g)
+    grad_op = matmul(g_inv, d_trans)
+
+    ! Assemble the concentration difference vector
+    allocate (dc(number_connections))
+    local_pos = 1
+    do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
+      m = this%dis%con%ja(ipos)
+      dc(local_pos) = cnew(m) - cnew(n)
+      local_pos = local_pos + 1
+    end do
+
+    grad = matmul(grad_op, dc)
+    grad_c(1) = grad(1)
+    grad_c(2) = grad(2)
+    grad_c(3) = grad(3)
+
+    grad2_c(1) = grad(4)
+    grad2_c(2) = grad(5)
+    grad2_c(3) = grad(6)
+
+    grad2xyz_c(1) = grad(7)
+    grad2xyz_c(2) = grad(8)
+    grad2xyz_c(3) = grad(9)
+
+  end subroutine
 
   subroutine compute_cell_gradient(this, n, cnew, grad_c)
     ! -- dummy
@@ -546,14 +730,14 @@ contains
   end subroutine compute_cell_gradient
 
   function pinv(A) result(B)
-    real(DP), intent(in) :: A(3, 3) !! Matrix
-    real(DP) :: B(3, 3) !! Inverse matrix
+    real(DP), intent(in) :: A(:, :) !! Matrix
+    real(DP) :: B(SIZE(A, DIM=2), SIZE(A, DIM=1)) !! Inverse matrix
 
     integer(I4B) :: pos, ierr
-    real(DP), dimension(SIZE(A, DIM=2), SIZE(A, DIM=2)) :: U
-    real(DP), dimension(SIZE(A, DIM=1), SIZE(A, DIM=1)) :: V
+    real(DP), dimension(SIZE(A, DIM=1), SIZE(A, DIM=1)) :: U
+    real(DP), dimension(SIZE(A, DIM=2), SIZE(A, DIM=2)) :: V
     real(DP), dimension(SIZE(A, DIM=2)) :: sigma
-    real(DP), dimension(SIZE(A, DIM=2), SIZE(A, DIM=2)) :: sigma_plus
+    real(DP), dimension(SIZE(A, DIM=2), SIZE(A, DIM=1)) :: sigma_plus
 
     CALL SVD(A, sigma, .TRUE., U, .TRUE., V, ierr)
 
@@ -572,6 +756,7 @@ contains
   !<
   subroutine adv_cq(this, cnew, flowja)
     ! -- modules
+    use TdisModule, only: kstp, kper, delt
     ! -- dummy
     class(TspAdvType) :: this
     real(DP), intent(in), dimension(:) :: cnew
@@ -579,26 +764,46 @@ contains
     ! -- local
     integer(I4B) :: nodes
     integer(I4B) :: n, m, idiag, ipos
-    real(DP) :: omega, qnm
+    real(DP) :: omega, qnm, q
+    integer(I4B) time_idx
+    real(DP), allocatable, dimension(:) :: cnew2, rhs2, rhs2_old
+    real(DP), dimension(3):: rk3_K_weights =(/0.0_dp, 0.5_dp, 2.0_dp /)
+    real(DP), dimension(3):: rk3_rhs_weights =(/1.0_dp/6.0_dp, 4.0_dp/6.0_dp, 1.0_dp/6.0_dp /)
+    real(DP), dimension(3):: rk3_rhs_old_weights =(/0.0_dp, 0.0_dp, -1.0_dp  /)
     !
     ! -- Calculate advection and add to flowja. qnm is the volumetric flow
     !    rate and has dimensions of L^/T.
-    nodes = this%dis%nodes
-    do n = 1, nodes
-      if (this%ibound(n) == 0) cycle
-      idiag = this%dis%con%ia(n)
-      do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
-        m = this%dis%con%ja(ipos)
-        if (this%ibound(m) == 0) cycle
-        qnm = this%fmi%gwfflowja(ipos) * this%eqnsclfac
-        omega = this%adv_weight(this%iadvwt, ipos, n, m, qnm)
-        flowja(ipos) = flowja(ipos) + qnm * omega * cnew(n) + &
-                       qnm * (DONE - omega) * cnew(m)
+    allocate(rhs2(size(flowja)))
+    rhs2_old = rhs2
+    do time_idx = 1, 3
+      cnew2 = cnew + delt * (rk3_K_weights(time_idx) * rhs2 + rk3_rhs_old_weights(time_idx) * rhs2_old)
+      rhs2_old = rhs2
+      rhs2 = 0
+      
+      nodes = this%dis%nodes
+      do n = 1, nodes
+        if (this%ibound(n) == 0) cycle
+        idiag = this%dis%con%ia(n)
+        do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
+          m = this%dis%con%ja(ipos)
+          if (m <= n) cycle
+          if (this%ibound(m) == 0) cycle
+          qnm = this%fmi%gwfflowja(ipos) * this%eqnsclfac
+          omega = this%adv_weight(this%iadvwt, ipos, n, m, qnm)
+          if (qnm > 0) then
+            q = qnm * cnew2(m)
+          else
+            q = qnm * cnew2(n)
+          end if
+          rhs2(idiag) = rhs2(idiag) - q
+          rhs2(ipos) = rhs2(ipos) + q
+        end do
       end do
+      !
+      ! -- TVD
+      if (this%iadvwt >= 2) call this%advtvd_bd(cnew2, rhs2)
+      flowja = flowja + rk3_rhs_weights(time_idx) * rhs2
     end do
-    !
-    ! -- TVD
-    if (this%iadvwt >= 2) call this%advtvd_bd(cnew, flowja)
   end subroutine adv_cq
 
   !> @brief Add TVD contribution to flowja

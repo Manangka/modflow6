@@ -444,7 +444,7 @@ contains
                            this%idxglo, this%x, this%rhs, kiter)
     end if
     if (this%inadv > 0) then
-      call this%adv%adv_fc(this%dis%nodes, matrix_sln, this%idxglo, this%x, &
+      call this%adv%adv_fc(this%dis%nodes, matrix_sln, this%idxglo, this%xold, &
                            this%rhs)
     end if
     if (this%indsp > 0) then
