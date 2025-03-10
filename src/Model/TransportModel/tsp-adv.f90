@@ -9,6 +9,7 @@ module TspAdvModule
   use TspAdvOptionsModule, only: TspAdvOptionsType
   use SVDModule, only: SVD2
   use MatrixBaseModule
+  use GhostCellsModule, only: GhostCellsType, get_number_sides
 
   implicit none
   private
@@ -27,7 +28,7 @@ module TspAdvModule
     type(TspFmiType), pointer :: fmi => null() !< pointer to fmi object
     real(DP), pointer :: eqnsclfac => null() !< governing equation scale factor; =1. for solute; =rhow*cpw for energy
     type(Array2D), allocatable, dimension(:) :: grad_op
-
+    type(GhostCellsType), allocatable :: ghostcells
   contains
 
     procedure :: adv_df
@@ -133,13 +134,16 @@ contains
     this%dis => dis
     this%ibound => ibound
 
+    ! -- Create ghost cells
+    this%ghostcells = GhostCellsType(dis)
+
     ! -- Compute the gradient operator
     nodes = dis%nodes
     allocate (this%grad_op(dis%nodes))
     do n = 1, nodes
       this%grad_op(n)%data = this%create_grad_operator(n)
     end do
-  end subroutine adv_ar
+  end subroutine adv_ar 
 
   !> @brief  Calculate maximum time step length
   !!
@@ -466,9 +470,6 @@ contains
     ! -- return if upwind cell is a boundary cell
     ! if (this%ibound(iup) <= 0) return
     !
-    ! -- LSG needs at least two connected nodes
-    if (number_connected_nodes(this%dis, iup) <= 1) return
-    !
     ! -- return if cell is source cell
     if (this%is_source_cell(iup)) return
     !
@@ -584,36 +585,23 @@ contains
     real(DP), dimension(:, :), allocatable :: W2
     real(DP), dimension(3, 3) :: g
     real(DP), dimension(3, 3) :: g_inv
+    real(DP) :: xc, yc, zc
+    integer(I4B) :: number_sides
 
     number_connections = number_connected_nodes(this%dis, n)
+    number_sides = get_number_sides(this%dis, n)
 
-    if (number_connections == 1) then
-      ! If a cell only has 1 neighbour compute the gradient using finite difference
-      ! This case can happen if a triangle element is located in a cornor of a square domain
-      ! with two sides being domain boundaries
-
-      allocate (grad_op(3, 1))
-      grad_op = 0
-
-      ipos = this%dis%con%ia(n) + 1
-      m = this%dis%con%ja(ipos)
-      dnm = this%node_distance(n, m)
-
-      if (dabs(dnm(1)) > DPREC) grad_op(1, 1) = 1.0_dp / dnm(1)
-      if (dabs(dnm(2)) > DPREC) grad_op(2, 1) = 1.0_dp / dnm(2)
-      if (dabs(dnm(3)) > DPREC) grad_op(3, 1) = 1.0_dp / dnm(3)
-
-      return
-    end if
-
-    allocate (d(number_connections, 3))
-    allocate (d_trans(3, number_connections))
-    allocate (grad_op(3, number_connections))
-    allocate (W2(number_connections, number_connections))
+    allocate (d(number_sides, 3))
+    allocate (d_trans(3, number_sides))
+    allocate (grad_op(3, number_sides))
+    allocate (W2(number_sides, number_sides))
 
     ! Assemble the distance and transposed distance matrices
     W2 = 0
+    d = 0
+    d_trans = 0
     local_pos = 1
+    ! Handle the internal connections
     do ipos = this%dis%con%ia(n) + 1, this%dis%con%ia(n + 1) - 1
       m = this%dis%con%ja(ipos)
       dnm = this%node_distance(n, m)
@@ -622,13 +610,36 @@ contains
       d(local_pos, 2) = dnm(2)
       d(local_pos, 3) = dnm(3)
 
-      d_trans(1, local_pos) = d(local_pos, 1)
-      d_trans(2, local_pos) = d(local_pos, 2)
-      d_trans(3, local_pos) = d(local_pos, 3)
+      d_trans(1, local_pos) = dnm(1)
+      d_trans(2, local_pos) = dnm(2)
+      d_trans(3, local_pos) = dnm(3)
 
       W2(local_pos, local_pos) = 1.0_dp / (dnm(1)**2.0_dp + dnm(2)**2.0_dp + dnm(3)**2.0_dp)
 
       local_pos = local_pos + 1
+    end do
+
+    ! Handle the ghost cells
+    do ipos = this%ghostcells%ia(n), this%ghostcells%ia(n + 1) - 1
+      xc = this%dis%xc(n)
+      yc = this%dis%yc(n)
+      zc = (this%dis%top(n) + this%dis%bot(n)) / 2.0_dp
+
+      dnm(1) = this%ghostcells%xc(ipos) - xc
+      dnm(2) = this%ghostcells%yc(ipos) - yc
+      dnm(3) =  this%ghostcells%zc(ipos) - zc
+
+      d(local_pos, 1) = dnm(1)
+      d(local_pos, 2) = dnm(2)
+      d(local_pos, 3) = dnm(3)
+
+      d_trans(1, local_pos) = dnm(1)
+      d_trans(2, local_pos) = dnm(2)
+      d_trans(3, local_pos) = dnm(3)
+
+      W2(local_pos, local_pos) = 1.0_dp / (dnm(1)**2.0_dp + dnm(2)**2.0_dp + dnm(3)**2.0_dp)
+      local_pos = local_pos + 1
+
     end do
 
     ! Compute the G and inverse G matrices
@@ -636,7 +647,7 @@ contains
     g_inv = pinv(g)
 
     ! Compute the gradient operator
-    grad_op = matmul(g_inv, matmul(d_trans, W2))
+    grad_op = matmul(g_inv, matmul(d_trans, W2(:,1:number_connections)))
 
   end function create_grad_operator
 

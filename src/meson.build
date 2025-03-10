@@ -161,6 +161,7 @@ modflow_sources = files(
     'Model' / 'Discretization' / 'Disv.f90',
     'Model' / 'Discretization' / 'Disv1d.f90',
     'Model' / 'Discretization' / 'Disv2d.f90',
+    'Model' / 'Discretization' / 'GhostCells.f90',
     'Model' / 'Geometry' / 'BaseGeometry.f90',
     'Model' / 'Geometry' / 'CircularGeometry.f90',
     'Model' / 'Geometry' / 'RectangularGeometry.f90',
