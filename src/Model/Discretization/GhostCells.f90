@@ -228,14 +228,14 @@ contains
     ! The top and the bottom are not really edges but we treat them as such
     ! We only need a line on the top/bottom to reflect the centroid over
     if (is_ghost_boundary(num_sides + 1 )) then 
-      boundary_edges(ipos, 1, :) = [0.0_dp, 0.0_dp, dis%bot(n)]
-      boundary_edges(ipos, 2, :) = [1.0_dp, 0.0_dp, dis%bot(n)]
+      boundary_edges(ipos, 1, :) = [dis%xc(n),  dis%yc(n), dis%bot(n)]
+      boundary_edges(ipos, 2, :) = [dis%xc(n) + 1.0_dp,  dis%yc(n), dis%bot(n)]
       ipos = ipos + 1
     end if
 
     if (is_ghost_boundary(num_sides +2  )) then 
-      boundary_edges(ipos, 1, :) = [0.0_dp, 0.0_dp, dis%top(n)]
-      boundary_edges(ipos, 2, :) = [1.0_dp, 0.0_dp, dis%top(n)]
+      boundary_edges(ipos, 1, :) = [dis%xc(n), dis%yc(n), dis%top(n)]
+      boundary_edges(ipos, 2, :) = [dis%xc(n) + 1.0_dp, dis%yc(n), dis%top(n)]
       ipos = ipos + 1
     end if
 
