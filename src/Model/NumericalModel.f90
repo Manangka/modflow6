@@ -28,7 +28,8 @@ module NumericalModelModule
     real(DP), dimension(:), pointer, contiguous :: rhs => null() !right-hand side vector
     real(DP), dimension(:), pointer, contiguous :: cond => null() !conductance matrix
     integer(I4B), dimension(:), pointer, contiguous :: idxglo => null() !pointer to position in solution matrix
-    real(DP), dimension(:), pointer, contiguous :: xold => null() !dependent variable for previous timestep
+    real(DP), dimension(:), pointer, contiguous :: xold => null() !dependent variable for current timestep
+    real(DP), dimension(:), pointer, contiguous :: xold2 => null() !dependent variable for previous timestep
     real(DP), dimension(:), pointer, contiguous :: flowja => null() !intercell flows
     integer(I4B), dimension(:), pointer, contiguous :: ibound => null() !ibound array
     !
@@ -234,6 +235,7 @@ contains
     !
     ! -- Arrays
     call mem_deallocate(this%xold)
+    call mem_deallocate(this%xold2)
     call mem_deallocate(this%flowja, 'FLOWJA', this%memoryPath)
     call mem_deallocate(this%idxglo)
     !
@@ -301,6 +303,7 @@ contains
     integer(I4B) :: i
     !
     call mem_allocate(this%xold, this%neq, 'XOLD', this%memoryPath)
+    call mem_allocate(this%xold2, this%neq, 'XOLD2', this%memoryPath)
     call mem_allocate(this%flowja, this%nja, 'FLOWJA', this%memoryPath)
     call mem_allocate(this%idxglo, this%nja, 'IDXGLO', this%memoryPath)
     !

@@ -27,6 +27,7 @@ module TdisModule
   logical(LGP), public, pointer :: endofperiod => null() !< flag indicating end of stress period
   logical(LGP), public, pointer :: endofsimulation => null() !< flag indicating end of simulation
   real(DP), public, pointer :: delt => null() !< length of the current time step
+  real(DP), public, pointer :: delt2 => null() !< length of the previous time step
   real(DP), public, pointer :: pertim => null() !< time relative to start of stress period
   real(DP), public, pointer :: topertim => null() !< simulation time at start of stress period
   real(DP), public, pointer :: totim => null() !< time relative to start of simulation
@@ -169,6 +170,7 @@ contains
     end if
     !
     ! -- Set delt
+    delt2 = delt
     if (adaptivePeriod) then
       call ats_set_delt(kstp, kper, pertim, perlen(kper), delt)
     else
@@ -359,6 +361,7 @@ contains
     call mem_deallocate(endofperiod)
     call mem_deallocate(endofsimulation)
     call mem_deallocate(delt)
+    call mem_deallocate(delt2)
     call mem_deallocate(pertim)
     call mem_deallocate(topertim)
     call mem_deallocate(totim)
@@ -469,6 +472,7 @@ contains
     call mem_allocate(endofperiod, 'ENDOFPERIOD', 'TDIS')
     call mem_allocate(endofsimulation, 'ENDOFSIMULATION', 'TDIS')
     call mem_allocate(delt, 'DELT', 'TDIS')
+    call mem_allocate(delt2, 'DELT2', 'TDIS')
     call mem_allocate(pertim, 'PERTIM', 'TDIS')
     call mem_allocate(topertim, 'TOPERTIM', 'TDIS')
     call mem_allocate(totim, 'TOTIM', 'TDIS')
@@ -493,6 +497,7 @@ contains
     endofperiod = .true.
     endofsimulation = .false.
     delt = DZERO
+    delt2 = DZERO
     pertim = DZERO
     topertim = DZERO
     totim = DZERO

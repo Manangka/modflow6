@@ -42,7 +42,7 @@ module UTVDSchemeModule
 
     real(DP), dimension(:), pointer :: phi
     type(LocalCellExtremaType), allocatable :: min_max_phi ! local minimum values at nodes
-    integer(I4B) :: limiter_id = 2 ! default to van Leer limiter
+    integer(I4B) :: limiter_id = 6 ! default to van Leer limiter
     real(DP), dimension(:, :), allocatable :: cached_node_distance ! distance vectors
   contains
     procedure :: compute
@@ -161,6 +161,7 @@ contains
     end if
     !
     ! -- Add low order terms
+    ! phi_face%rhs = -this%phi(iup)
     coef_up = DONE
     !
     ! -- Add high order terms
@@ -196,14 +197,14 @@ contains
 
     ! High order term is:
     relative_distance = cl1 / (cl1 + cl2)
-    phi_face%rhs = -relative_distance * alimiter * (this%phi(idn) - this%phi(iup))
+    ! phi_face%rhs = phi_face%rhs -relative_distance * alimiter * (this%phi(idn) - this%phi(iup))
 
     ! Alternative way of writing the high order term by adding it to the
     ! coefficients matrix. The equation to be added is:
     ! high_order = cl1 / (cl1 + cl2) * alimiter * qnm * (phi(idn) - phi(iup))
     ! This is split into two parts:
-    ! coef_up = coef_up - relative_distance * alimiter
-    ! coef_dn = coef_dn + relative_distance * alimiter
+    coef_up = coef_up - relative_distance * alimiter
+    coef_dn = coef_dn + relative_distance * alimiter
 
   end function compute
 
@@ -224,9 +225,18 @@ contains
       theta = max(0.0_dp, min(2.0_dp * r, 1.0_dp), min(r, 2.0_dp))
     case (5) ! van Albada
       theta = max(0.0_dp, (r * r + r) / (r * r + 1.0_dp))
-    case (6) ! Koren modified
-      theta = max(0.0_dp, min(4.0_dp * r * r + r, &
-                              1.0_dp / 3.0_dp + 2.0_dp / 3.0_dp * r, 2.0_dp))
+    case (6) ! SSFL
+      if (r < 0.0_dp) then
+        theta = 0.0_dp
+      elseif(r < 0.4_dp) then
+        theta = (4.25_dp * r ** 3.0_dp - 6.0_dp * r ** 2.0_dp + 2.0_dp * r) / &
+                (2.25_dp * r ** 2_dp - 3.0 * r + 1.0_dp)
+      elseif(r < 2.5_dp) then
+        theta = 0.5_dp * r + 0.5_dp
+      else
+        theta = (2.0_dp * r ** 2.0_dp - 6.0 * r + 4.25_dp) / &
+                (r ** 2.0_dp - 3.0_dp * r + 2.25_dp)
+      end if
     case default
       theta = DZERO
     end select

@@ -14,6 +14,7 @@ module VectorBaseModule
     procedure(get_value_local_if), deferred :: get_value_local
     procedure(zero_entries_if), deferred :: zero_entries
     procedure(set_value_local_if), deferred :: set_value_local
+    procedure(add_value_local_if), deferred :: add_value_local
     procedure(axpy_if), deferred :: axpy
     procedure(norm2_if), deferred :: norm2
     procedure(print_if), deferred :: print
@@ -52,6 +53,12 @@ module VectorBaseModule
       integer(I4B) :: idx !< index in local numbering
       real(DP) :: val !< the value at the index
     end function
+    subroutine add_value_local_if(this, idx, val)
+      import VectorBaseType, I4B, DP
+      class(VectorBaseType) :: this !< this vector
+      integer(I4B) :: idx !< index in local numbering
+      real(DP) :: val !< the value to add
+    end subroutine
     subroutine zero_entries_if(this)
       import VectorBaseType
       class(VectorBaseType) :: this

@@ -218,15 +218,16 @@ contains
   !!
   !!  Method to calculate coefficients and fill amat and rhs.
   !<
-  subroutine adv_fc(this, nodes, matrix_sln, idxglo, cnew, rhs)
+  subroutine adv_fc(this, nodes, matrix_sln, idxglo, cnew, rhs_vec)
     ! -- modules
+    use VectorBaseModule
     ! -- dummy
     class(TspAdvType) :: this !< this instance
     integer(I4B), intent(in) :: nodes !< number of nodes
     class(MatrixBaseType), pointer :: matrix_sln !< pointer to solution matrix
     integer(I4B), intent(in), dimension(:) :: idxglo !< global indices for matrix
     real(DP), intent(in), dimension(:), target :: cnew !< new concentration/temperature values
-    real(DP), dimension(:), intent(inout) :: rhs !< right-hand side vector
+    class(VectorBaseType), intent(inout) :: rhs_vec !< right-hand side vector
     ! -- local
     integer(I4B) :: n, m, idiag, ipos
     real(DP) :: qnm !< volumetric flow rate
@@ -247,7 +248,7 @@ contains
 
         call matrix_sln%add_value_pos(idxglo(idiag), qnm * coefficients%c_n)
         call matrix_sln%add_value_pos(idxglo(ipos), qnm * coefficients%c_m)
-        rhs(n) = rhs(n) + qnm * coefficients%rhs
+        call rhs_vec%add_value_local(n, qnm * coefficients%rhs)
       end do
     end do
   end subroutine adv_fc

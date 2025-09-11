@@ -359,6 +359,11 @@ contains
     if (iFailedStepRetry > 0) irestore = 1
     if (irestore == 0) then
       !
+      ! -- copy xold into xold2
+      do n = 1, this%dis%nodes
+          this%xold2(n) = this%xold(n)
+      end do
+      !
       ! -- Copy x into xold
       do n = 1, this%dis%nodes
         if (this%ibound(n) == 0) then
@@ -419,6 +424,8 @@ contains
   !! subroutines
   !<
   subroutine gwe_fc(this, kiter, matrix_sln, inwtflag)
+    ! -- modules
+    use SeqVectorModule
     ! -- dummy
     class(GweModelType) :: this
     integer(I4B), intent(in) :: kiter
@@ -427,6 +434,7 @@ contains
     ! -- local
     class(BndType), pointer :: packobj
     integer(I4B) :: ip
+    type(SeqVectorType), target :: rhs_vec
     !
     ! -- Call fc routines
     call this%fmi%fmi_fc(this%dis%nodes, this%xold, this%nja, matrix_sln, &
@@ -439,8 +447,11 @@ contains
                            this%idxglo, this%x, this%rhs, kiter)
     end if
     if (this%inadv > 0) then
+      ! -- BDF1 / BDF2
+      rhs_vec%array => this%rhs
+      rhs_vec%size = size(this%rhs)
       call this%adv%adv_fc(this%dis%nodes, matrix_sln, this%idxglo, this%x, &
-                           this%rhs)
+                           rhs_vec)
     end if
     if (this%incnd > 0) then
       call this%cnd%cnd_fc(kiter, this%dis%nodes, this%nja, matrix_sln, &

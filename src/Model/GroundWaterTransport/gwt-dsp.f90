@@ -251,8 +251,9 @@ contains
   !!
   !!  Method to calculate and fill coefficients for the package.
   !<
-  subroutine dsp_fc(this, kiter, nodes, nja, matrix_sln, idxglo, rhs, cnew)
+  subroutine dsp_fc(this, kiter, nodes, nja, matrix_sln, idxglo, rhs_vec, cnew)
     ! -- modules
+    use VectorBaseModule
     ! -- dummy
     class(GwtDspType) :: this
     integer(I4B) :: kiter
@@ -260,14 +261,14 @@ contains
     integer(I4B), intent(in) :: nja
     class(MatrixBaseType), pointer :: matrix_sln
     integer(I4B), intent(in), dimension(nja) :: idxglo
-    real(DP), intent(inout), dimension(nodes) :: rhs
+    class(VectorBaseType), intent(inout) :: rhs_vec
     real(DP), intent(inout), dimension(nodes) :: cnew
     ! -- local
     integer(I4B) :: n, m, idiag, idiagm, ipos, isympos, isymcon
     real(DP) :: dnm
     !
     if (this%ixt3d > 0) then
-      call this%xt3d%xt3d_fc(kiter, matrix_sln, idxglo, rhs, cnew)
+      call this%xt3d%xt3d_fc(kiter, matrix_sln, idxglo, rhs_vec%get_array(), cnew)
     else
       do n = 1, nodes
         if (this%fmi%ibdgwfsat0(n) == 0) cycle

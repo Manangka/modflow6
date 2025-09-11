@@ -173,13 +173,14 @@ contains
   !!
   !!  Method to calculate and fill coefficients for the package.
   !<
-  subroutine mst_fc(this, nodes, cold, nja, matrix_sln, idxglo, cnew, &
+  subroutine mst_fc(this, nodes, cold, cold2, nja, matrix_sln, idxglo, cnew, &
                     rhs, kiter)
     ! -- modules
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    real(DP), intent(in), dimension(nodes) :: cold2 !< concentration at end of second last time step
     integer(I4B), intent(in) :: nja !< number of GWT connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
@@ -188,7 +189,7 @@ contains
     integer(I4B), intent(in) :: kiter !< solution outer iteration number
     !
     ! -- storage contribution
-    call this%mst_fc_sto(nodes, cold, nja, matrix_sln, idxglo, rhs)
+    call this%mst_fc_sto(nodes, cold, cold2, nja, matrix_sln, idxglo, rhs)
     !
     ! -- decay contribution
     if (this%idcy /= DECAY_OFF) then
@@ -212,25 +213,46 @@ contains
   !!
   !!  Method to calculate and fill storage coefficients for the package.
   !<
-  subroutine mst_fc_sto(this, nodes, cold, nja, matrix_sln, idxglo, rhs)
+  subroutine mst_fc_sto(this, nodes, cold, cold2, nja, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: delt, delt2, kstp, kper
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    real(DP), intent(in), dimension(nodes) :: cold2 !< concentration at end of second last time step
     integer(I4B), intent(in) :: nja !< number of GWT connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
     ! -- local
     integer(I4B) :: n, idiag
-    real(DP) :: tled
     real(DP) :: hhcof, rrhs
-    real(DP) :: vnew, vold
+    real(DP) :: vnew, vold, vold2
+    logical :: first
+    real(DP) :: a1, a2, a3, r
     !
     ! -- set variables
-    tled = DONE / delt
+    first = kstp == 1 .and. kper == 1
+    ! first = .true.
+    if (first) then
+      a1 = 1.0_dp
+      a2 = -1.0_dp
+      a3 = 0.0_dp
+    else
+      ! BDF2
+      r = delt / delt2
+      a1 = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
+      a2 = -(1.0_dp + r)
+      a3 = r ** 2.0_dp / (1.0_dp + r)
+      ! LeapFrog
+      ! a1 = 1.0_dp
+      ! a2 = -1.0_dp
+      ! a3 = 0.0_dp
+    end if
+    a1 = a1 / delt
+    a2 = a2 / delt
+    a3 = a3 / delt
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
@@ -242,15 +264,24 @@ contains
       vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
              this%fmi%gwfsat(n) * this%thetam(n)
       vold = vnew
-      if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
+      ! if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
+      ! if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
+      vold2 = vold
+      ! if (this%fmi%igwfstrgss /= 0) vold2 = vold2 + this%fmi%gwfstrgss(n) * delt2
+      ! if (this%fmi%igwfstrgsy /= 0) vold2 = vold2 + this%fmi%gwfstrgsy(n) * delt2
       !
       ! -- add terms to diagonal and rhs accumulators
-      hhcof = -vnew * tled
-      rrhs = -vold * tled * cold(n)
+      hhcof = -vnew * a1
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
+
+      rrhs = vold * a2 * cold(n)
       rhs(n) = rhs(n) + rrhs
+
+      if (.not. first) then
+        rrhs = vold2 * a3 * cold2(n)
+        rhs(n) = rhs(n) + rrhs
+      end if
     end do
   end subroutine mst_fc_sto
 
@@ -554,16 +585,17 @@ contains
   !!
   !!  Method to calculate flows for the package.
   !<
-  subroutine mst_cq(this, nodes, cnew, cold, flowja)
+  subroutine mst_cq(this, nodes, cnew, cold, cold2, flowja)
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    real(DP), intent(in), dimension(nodes) :: cold2 !< concentration at end of last time step
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     !
     ! - storage
-    call this%mst_cq_sto(nodes, cnew, cold, flowja)
+    call this%mst_cq_sto(nodes, cnew, cold, cold2, flowja)
     !
     ! -- decay
     if (this%idcy /= DECAY_OFF) then
@@ -590,25 +622,47 @@ contains
   !!
   !!  Method to calculate storage terms for the package.
   !<
-  subroutine mst_cq_sto(this, nodes, cnew, cold, flowja)
+  subroutine mst_cq_sto(this, nodes, cnew, cold, cold2, flowja)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: delt, delt2, kstp, kper
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    real(DP), intent(in), dimension(nodes) :: cold2 !< concentration at end of last time step
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     ! -- local
     integer(I4B) :: n
     integer(I4B) :: idiag
     real(DP) :: rate
     real(DP) :: tled
-    real(DP) :: vnew, vold
+    real(DP) :: vnew, vold, vold2
     real(DP) :: hhcof, rrhs
+    logical :: first
+    real(DP) :: a1, a2, a3, r
     !
     ! -- initialize
-    tled = DONE / delt
+    first = kstp == 1 .and. kper == 1
+    ! first = .true.
+    if (first) then
+      a1 = 1.0_dp
+      a2 = -1.0_dp
+      a3 = 0.0_dp
+    else
+      ! BDF2
+      r = delt / delt2
+      a1 = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
+      a2 = -(1.0_dp + r)
+      a3 = r ** 2.0_dp / (1.0_dp + r)
+      ! LeapFrog
+      ! a1 = 1.0_dp
+      ! a2 = -1.0_dp
+      ! a3 = 0.0_dp
+    end if
+    a1 = a1 / delt
+    a2 = a2 / delt
+    a3 = a3 / delt
     !
     ! -- Calculate storage change
     do n = 1, nodes
@@ -621,13 +675,24 @@ contains
       vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
              this%fmi%gwfsat(n) * this%thetam(n)
       vold = vnew
-      if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
+      ! if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
+      ! if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
+      vold2 = vold
+      ! if (this%fmi%igwfstrgss /= 0) vold2 = vold2 + this%fmi%gwfstrgss(n) * delt2
+      ! if (this%fmi%igwfstrgsy /= 0) vold2 = vold2 + this%fmi%gwfstrgsy(n) * delt2
       !
       ! -- calculate rate
-      hhcof = -vnew * tled
-      rrhs = -vold * tled * cold(n)
-      rate = hhcof * cnew(n) - rrhs
+      hhcof = -vnew * a1
+      rate = hhcof * cnew(n)
+
+      rrhs = vold * a2 * cold(n)
+      rate = rate + rrhs
+
+      if (.not. first) then
+        rrhs = vold2 * a3 * cold2(n)
+        rate = rate + rrhs
+      end if
+
       this%ratesto(n) = rate
       idiag = this%dis%con%ia(n)
       flowja(idiag) = flowja(idiag) + rate

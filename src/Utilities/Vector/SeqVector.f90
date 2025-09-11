@@ -7,7 +7,7 @@ module SeqVectorModule
   private
 
   type, public, extends(VectorBaseType) :: SeqVectorType
-    integer(I4B), private :: size
+    integer(I4B) :: size
     real(DP), dimension(:), pointer, contiguous :: array
   contains
     procedure :: create_mm => sqv_create_mm
@@ -19,6 +19,7 @@ module SeqVectorModule
     procedure :: get_value_local => sqv_get_value_local
     procedure :: zero_entries => sqv_zero_entries
     procedure :: set_value_local => sqv_set_value_local
+    procedure :: add_value_local => sqv_add_value_local
     procedure :: axpy => sqv_axpy
     procedure :: norm2 => sqv_norm2
     procedure :: print => sqv_print
@@ -129,6 +130,15 @@ contains
     this%array(idx) = val
 
   end subroutine sqv_set_value_local
+
+  subroutine sqv_add_value_local(this, idx, val)
+    class(SeqVectorType) :: this !< this vector
+    integer(I4B) :: idx !< the index in local numbering
+    real(DP) :: val !< the value to add
+
+    this%array(idx) = this%array(idx) + val
+
+  end subroutine sqv_add_value_local
 
   !> @brief Caculcates AXPY: y = a*x + y
   !<
