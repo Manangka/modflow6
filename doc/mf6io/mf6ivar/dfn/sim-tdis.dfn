@@ -59,6 +59,15 @@ tagged false
 longname file name of adaptive time series information
 description defines an adaptive time step (ATS) input file defining ATS controls.  Records in the ATS file can be used to override the time step behavior for selected stress periods.
 
+block options
+name scheme
+type string
+valid implicit-euler imex-euler bdf2 imex-bdf2 imex-cnab
+reader urword
+optional true
+longname time scheme
+description scheme used to progress the time term.  Only implicit Euler is supported.  If not specified, implicit Euler the default scheme.
+
 # --------------------- sim tdis dimensions ---------------------
 
 block dimensions

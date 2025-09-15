@@ -429,11 +429,12 @@ contains
   !<
   subroutine gwt_fc(this, kiter, matrix_sln, inwtflag)
     ! -- modules
-    use TdisModule, only: delt, delt2, kstp, kper
+    use TdisModule, only: delt, delt2, kstp, kper, ischeme
     use VectorBaseModule
     use IMEXMatrixDecoratorModule
     use IMEXVectorDecoratorModule
     use SeqVectorModule
+    use TimeSchemeEnumModule
     ! -- dummy
     class(GwtModelType) :: this
     integer(I4B), intent(in) :: kiter
@@ -452,7 +453,6 @@ contains
     class(VectorBaseType), pointer :: rhs_ptr
 
     first = kstp == 1 .and. kper == 1
-    ! first = .true.
 
     rhs_vec%array => this%rhs
     rhs_vec%size = size(this%rhs)
@@ -469,113 +469,118 @@ contains
                            this%idxglo, this%x, this%rhs, kiter)
     end if
     if (this%inadv > 0) then
-      ! -- BDF1 / BDF2
-      rhs_vec%array => this%rhs
-      rhs_vec%size = size(this%rhs)
-      call this%adv%adv_fc(this%dis%nodes, matrix_sln, this%idxglo, this%x, &
-                           rhs_vec)
+      if (ischeme == TIME_SCHEME_IMPLICIT_EULER .or. ischeme == TIME_SCHEME_BDF2) then
+        ! -- BDF1 / BDF2
+        rhs_vec%array => this%rhs
+        rhs_vec%size = size(this%rhs)
+        call this%adv%adv_fc(this%dis%nodes, matrix_sln, this%idxglo, this%x, &
+                            rhs_vec)
+      else
+        ! -- IMEX schemes
+        if (first .or. ischeme == TIME_SCHEME_IMEX_EULER) then
+          b1 = 1.0_dp
+          b2 = 0.0_dp
+        else
+          r = delt / delt2
+          if (ischeme == TIME_SCHEME_IMEX_BDF2) then
+            ! Extrapolation
+            b1 = (1.0_dp + r)
+            b2 = -r
+          else if (ischeme == TIME_SCHEME_IMEX_CNAB) then
+          ! Adams–Bashforth 2
+            b1 = 1.0 + r / 2.0_dp
+            b2 = - r / 2.0_dp
+          end if
+          ! ! Ruuth
+          ! b1 =  (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
+          ! b2 = -r ** 2.0_dp / (1.0_dp + r)
+        end if
 
-      ! ! -- IMEX
-      ! if (first) then
-      !   b1 = 1.0_dp
-      !   b2 = 0.0_dp
-      ! else
-      !   r = delt / delt2
-      !   ! Extrapolation
-      !   b1 = (1.0_dp + r)
-      !   b2 = -r
-      !   ! Adams–Bashforth 2
-      !   ! b1 = 1.0 + r / 2.0_dp
-      !   ! b2 = - r / 2.0_dp
-      !   ! ! Ruuth
-      !   ! b1 =  (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
-      !   ! b2 = -r ** 2.0_dp / (1.0_dp + r)
-      ! end if
+        matrix_old%matrix => matrix_sln
+        matrix_old%x => this%xold
+        matrix_old%rhs => this%rhs
+        matrix_old%coef = b1
 
-      ! matrix_old%matrix => matrix_sln
-      ! matrix_old%x => this%xold
-      ! matrix_old%rhs => this%rhs
-      ! matrix_old%coef = b1
+        rhs_old%vector => rhs_vec
+        rhs_old%coef = b1
 
-      ! rhs_old%vector => rhs_vec
-      ! rhs_old%coef = b1
+        matrix_ptr => matrix_old
+        rhs_ptr => rhs_old
+        call this%adv%adv_fc(this%dis%nodes, matrix_ptr, this%idxglo, this%xold, &
+                            rhs_ptr)
 
-      ! matrix_ptr => matrix_old
-      ! rhs_ptr => rhs_old
-      ! call this%adv%adv_fc(this%dis%nodes, matrix_ptr, this%idxglo, this%xold, &
-      !                      rhs_ptr)
+        if (.not. first .and. (ischeme == TIME_SCHEME_IMEX_BDF2 .or. ischeme == TIME_SCHEME_IMEX_CNAB)) then
+          matrix_old2%matrix => matrix_sln
+          matrix_old2%x => this%xold2
+          matrix_old2%rhs => this%rhs
+          matrix_old2%coef = b2
 
-      ! if (.not. first) then
-      !   matrix_old2%matrix => matrix_sln
-      !   matrix_old2%x => this%xold2
-      !   matrix_old2%rhs => this%rhs
-      !   matrix_old2%coef = b2
+          rhs_old2%vector => rhs_vec
+          rhs_old2%coef = b2
 
-      !   rhs_old2%vector => rhs_vec
-      !   rhs_old2%coef = b2
-
-      !   matrix_ptr => matrix_old2
-      !   rhs_ptr => rhs_old2
-      !   call this%adv%adv_fc(this%dis%nodes, matrix_ptr, this%idxglo, this%xold2, &
-      !                       rhs_ptr)
-      ! end if
-
+          matrix_ptr => matrix_old2
+          rhs_ptr => rhs_old2
+          call this%adv%adv_fc(this%dis%nodes, matrix_ptr, this%idxglo, this%xold2, &
+                              rhs_ptr)
+        end if
+      end if
     end if
     if (this%indsp > 0) then
+      if (ischeme /= TIME_SCHEME_IMEX_CNAB) then
       ! -- BDF1 / BDF2
       rhs_vec%array => this%rhs
       rhs_vec%size = size(this%rhs)
       call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_sln, &
                             this%idxglo, rhs_vec, this%x)
+      else
+        ! -- IMEX
+        c = 0.0_dp
+        if (first) then
+          c1 = 0.5_dp
+          c2 = 0.5_dp
+          c3 = 0.0_dp
+        else
+          r = delt / delt2
+          ! CNAB
+          c1 = 0.5_dp
+          c2 = 0.5_dp
+          c3 = 0.0_dp
+          ! MCNAB
+          ! c1 = (8.0_dp * r + 1.0_dp) / (16.0_dp * r)
+          ! c2 = (7.0_dp * r - 1.0_dp) / (16.0_dp * r)
+          ! c3 = r / (16.0_dp * r)
+        end if
 
-      ! -- IMEX
-      ! c = 0.0_dp
-      ! if (first) then
-      !   c1 = 0.5_dp
-      !   c2 = 0.5_dp
-      !   c3 = 0.0_dp
-      ! else
-      !   r = delt / delt2
-      !   ! CNLF
-      !   c1 = 0.5_dp
-      !   c2 = 0.5_dp
-      !   c3 = 0.0_dp
-      !   ! MCNLF
-      !   ! c1 = (8.0_dp * r + 1.0_dp) / (16.0_dp * r)
-      !   ! c2 = (7.0_dp * r - 1.0_dp) / (16.0_dp * r)
-      !   ! c3 = r / (16.0_dp * r)
-      ! end if
+        matrix_new%matrix => matrix_sln
+        matrix_new%x => this%x
+        matrix_new%rhs => this%rhs
+        matrix_new%coef = c1
+        matrix_new%move_to_rhs = .false.
 
-      ! matrix_new%matrix => matrix_sln
-      ! matrix_new%x => this%x
-      ! matrix_new%rhs => this%rhs
-      ! matrix_new%coef = c1
-      ! matrix_new%move_to_rhs = .false.
+        matrix_ptr => matrix_new
+        call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
+                              this%idxglo, rhs_vec, this%x)
 
-      ! matrix_ptr => matrix_new
-      ! call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
-      !                       this%idxglo, rhs_vec, this%x)
+        matrix_old%matrix => matrix_sln
+        matrix_old%x => this%xold
+        matrix_old%rhs => this%rhs
+        matrix_old%coef = c2
 
-      ! matrix_old%matrix => matrix_sln
-      ! matrix_old%x => this%xold
-      ! matrix_old%rhs => this%rhs
-      ! matrix_old%coef = c2
+        matrix_ptr => matrix_old
+        call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
+                              this%idxglo, rhs_vec, this%xold)
 
-      ! matrix_ptr => matrix_old
-      ! call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
-      !                       this%idxglo, rhs_vec, this%xold)
+        if (.not. first) then
+          matrix_old2%matrix => matrix_sln
+          matrix_old2%x => this%xold2
+          matrix_old2%rhs => this%rhs
+          matrix_old2%coef = c3
 
-      ! if (.not. first) then
-      !   matrix_old2%matrix => matrix_sln
-      !   matrix_old2%x => this%xold2
-      !   matrix_old2%rhs => this%rhs
-      !   matrix_old2%coef = c3
-
-      !   matrix_ptr => matrix_old2
-      !   call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
-      !                       this%idxglo, rhs_vec, this%xold2)
-      ! end if
-
+          matrix_ptr => matrix_old2
+          call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_ptr, &
+                              this%idxglo, rhs_vec, this%xold2)
+        end if
+      end if
     end if
     if (this%inssm > 0) then
       call this%ssm%ssm_fc(matrix_sln, this%idxglo, this%rhs)

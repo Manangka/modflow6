@@ -2,11 +2,26 @@
 !convert this to a derived type?  May not be necessary since only
 !one of them is needed.
 
+module TimeSchemeEnumModule
+  use KindModule, only: I4B
+
+  implicit none
+
+  ! Time scheme codes
+  integer(I4B), parameter :: TIME_SCHEME_IMPLICIT_EULER = 0
+  integer(I4B), parameter :: TIME_SCHEME_IMEX_EULER = 1
+  integer(I4B), parameter :: TIME_SCHEME_BDF2 = 2
+  integer(I4B), parameter :: TIME_SCHEME_IMEX_BDF2 = 3
+  integer(I4B), parameter :: TIME_SCHEME_IMEX_CNAB = 4
+
+end module TimeSchemeEnumModule
+
 module TdisModule
 
   use KindModule, only: DP, I4B, LGP
   use SimVariablesModule, only: iout, isim_level
   use ConstantsModule, only: LINELENGTH, LENDATETIME, LENMEMPATH, VALL
+  use TimeSchemeEnumModule
   !
   implicit none
   !
@@ -42,6 +57,7 @@ module TdisModule
   character(len=LENDATETIME), public, pointer :: datetime0 => null() !< starting date and time for the simulation
   character(len=LENMEMPATH), pointer :: input_mempath => null() !< input context mempath for tdis
   character(len=LINELENGTH), pointer :: input_fname => null() !< input filename for tdis
+  integer(I4B), public, pointer :: ischeme => null()
   !
 contains
 
@@ -370,6 +386,7 @@ contains
     call mem_deallocate(totimsav)
     call mem_deallocate(pertimsav)
     call mem_deallocate(totalsimtime)
+    call mem_deallocate(ischeme)
     !
     ! -- strings
     deallocate (datetime0)
@@ -391,12 +408,17 @@ contains
     use MemoryManagerExtModule, only: mem_set_value
     use SourceCommonModule, only: filein_fname
     use SimTdisInputModule, only: SimTdisParamFoundType
+    use SimVariablesModule, only: errmsg
+    use SimModule, only: store_error, store_error_filename
     ! -- local
     type(SimTdisParamFoundType) :: found
     character(len=LINELENGTH), dimension(6) :: time_units = &
       &[character(len=LINELENGTH) :: 'UNDEFINED', 'SECONDS', 'MINUTES', 'HOURS', &
                                      'DAYS', 'YEARS']
     character(len=LINELENGTH) :: fname
+    character(len=LINELENGTH), dimension(5) :: supported_schemes = &
+      &[character(len=LINELENGTH) :: 'IMPLICIT-EULER', 'IMEX-EULER', 'BDF2', &
+                                     'IMEX-BDF2', 'IMEX-CNAB']
     ! -- formats
     character(len=*), parameter :: fmtitmuni = &
       &"(4x,'SIMULATION TIME UNIT IS ',A)"
@@ -405,17 +427,31 @@ contains
     !
     ! -- initialize time unit to undefined
     itmuni = 0
+    ischeme = TIME_SCHEME_IMPLICIT_EULER
     !
     ! -- source options from input context
     call mem_set_value(itmuni, 'TIME_UNITS', input_mempath, time_units, &
                        found%time_units)
     call mem_set_value(datetime0, 'START_DATE_TIME', input_mempath, &
                        found%start_date_time)
+    call mem_set_value(ischeme, 'SCHEME', input_mempath, supported_schemes, &
+                       found%scheme)
     !
     if (found%time_units) then
       !
       ! -- adjust to 0-based indexing for itmuni
       itmuni = itmuni - 1
+    end if
+
+    if (found%scheme) then
+      if (ischeme == 0) then
+        write (errmsg, '(a, a)') &
+          'Unknown time scheme'
+        call store_error(errmsg)
+        call store_error_filename(input_fname)
+      else
+         ischeme = ischeme - 1
+      end if     
     end if
     !
     ! -- enforce 0 or 1 ATS6_FILENAME entries in option block
@@ -481,6 +517,7 @@ contains
     call mem_allocate(totimsav, 'TOTIMSAV', 'TDIS')
     call mem_allocate(pertimsav, 'PERTIMSAV', 'TDIS')
     call mem_allocate(totalsimtime, 'TOTALSIMTIME', 'TDIS')
+    call mem_allocate(ischeme, 'SCHEME', 'TDIS')
     !
     ! -- strings
     allocate (datetime0)
@@ -507,6 +544,7 @@ contains
     pertimsav = DZERO
     totalsimtime = DZERO
     datetime0 = ''
+    ischeme = TIME_SCHEME_IMPLICIT_EULER
   end subroutine tdis_allocate_scalars
 
   !> @brief Allocate tdis arrays

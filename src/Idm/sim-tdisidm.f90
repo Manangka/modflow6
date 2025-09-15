@@ -18,6 +18,7 @@ module SimTdisInputModule
     logical :: ats6 = .false.
     logical :: filein = .false.
     logical :: ats6_filename = .false.
+    logical :: scheme = .false.
     logical :: nper = .false.
     logical :: perlen = .false.
     logical :: nstp = .false.
@@ -141,6 +142,24 @@ module SimTdisInputModule
     )
 
   type(InputParamDefinitionType), parameter :: &
+    simtdis_scheme = InputParamDefinitionType &
+    ( &
+    'SIM', & ! component
+    'TDIS', & ! subcomponent
+    'OPTIONS', & ! block
+    'SCHEME', & ! tag name
+    'SCHEME', & ! fortran variable
+    'STRING', & ! type
+    '', & ! shape
+    'time scheme', & ! longname
+    .false., & ! required
+    .false., & ! multi-record
+    .false., & ! preserve case
+    .false., & ! layered
+    .false. & ! timeseries
+    )
+
+  type(InputParamDefinitionType), parameter :: &
     simtdis_nper = InputParamDefinitionType &
     ( &
     'SIM', & ! component
@@ -221,6 +240,7 @@ module SimTdisInputModule
     simtdis_ats6, &
     simtdis_filein, &
     simtdis_ats6_filename, &
+    simtdis_scheme, &
     simtdis_nper, &
     simtdis_perlen, &
     simtdis_nstp, &

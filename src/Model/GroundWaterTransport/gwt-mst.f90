@@ -215,7 +215,8 @@ contains
   !<
   subroutine mst_fc_sto(this, nodes, cold, cold2, nja, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: delt, delt2, kstp, kper
+    use TdisModule, only: delt, delt2, kstp, kper, ischeme
+    use TimeSchemeEnumModule
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -234,21 +235,23 @@ contains
     !
     ! -- set variables
     first = kstp == 1 .and. kper == 1
-    ! first = .true.
-    if (first) then
+    if (first .or. ischeme == TIME_SCHEME_IMPLICIT_EULER .or. ischeme == TIME_SCHEME_IMEX_EULER) then
       a1 = 1.0_dp
       a2 = -1.0_dp
       a3 = 0.0_dp
     else
-      ! BDF2
       r = delt / delt2
-      a1 = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
-      a2 = -(1.0_dp + r)
-      a3 = r ** 2.0_dp / (1.0_dp + r)
-      ! LeapFrog
-      ! a1 = 1.0_dp
-      ! a2 = -1.0_dp
-      ! a3 = 0.0_dp
+      if (ischeme == TIME_SCHEME_BDF2 .or. ischeme == TIME_SCHEME_IMEX_BDF2) then
+        ! BDF2
+        a1 = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
+        a2 = -(1.0_dp + r)
+        a3 = r ** 2.0_dp / (1.0_dp + r)
+      else
+        ! CNAB
+        a1 = 1.0_dp
+        a2 = -1.0_dp
+        a3 = 0.0_dp
+      end if
     end if
     a1 = a1 / delt
     a2 = a2 / delt
@@ -278,7 +281,8 @@ contains
       rrhs = vold * a2 * cold(n)
       rhs(n) = rhs(n) + rrhs
 
-      if (.not. first) then
+      if ((.not. first) .and. &
+        ((ischeme == TIME_SCHEME_BDF2) .or. (ischeme == TIME_SCHEME_IMEX_BDF2) .or. (ischeme == TIME_SCHEME_IMEX_CNAB))) then
         rrhs = vold2 * a3 * cold2(n)
         rhs(n) = rhs(n) + rrhs
       end if
