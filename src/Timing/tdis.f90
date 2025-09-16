@@ -13,6 +13,7 @@ module TimeSchemeEnumModule
   integer(I4B), parameter :: TIME_SCHEME_BDF2 = 2
   integer(I4B), parameter :: TIME_SCHEME_IMEX_BDF2 = 3
   integer(I4B), parameter :: TIME_SCHEME_IMEX_CNAB = 4
+  integer(I4B), parameter :: TIME_SCHEME_IMEX_CNLF = 5
 
 end module TimeSchemeEnumModule
 
@@ -416,9 +417,9 @@ contains
       &[character(len=LINELENGTH) :: 'UNDEFINED', 'SECONDS', 'MINUTES', 'HOURS', &
                                      'DAYS', 'YEARS']
     character(len=LINELENGTH) :: fname
-    character(len=LINELENGTH), dimension(5) :: supported_schemes = &
+    character(len=LINELENGTH), dimension(6) :: supported_schemes = &
       &[character(len=LINELENGTH) :: 'IMPLICIT-EULER', 'IMEX-EULER', 'BDF2', &
-                                     'IMEX-BDF2', 'IMEX-CNAB']
+                                     'IMEX-BDF2', 'IMEX-CNAB', 'IMEX-CNLF']
     ! -- formats
     character(len=*), parameter :: fmtitmuni = &
       &"(4x,'SIMULATION TIME UNIT IS ',A)"

@@ -477,7 +477,7 @@ contains
                             rhs_vec)
       else
         ! -- IMEX schemes
-        if (first .or. ischeme == TIME_SCHEME_IMEX_EULER) then
+        if (first .or. ischeme == TIME_SCHEME_IMEX_EULER .or. ischeme == TIME_SCHEME_IMEX_CNLF) then
           b1 = 1.0_dp
           b2 = 0.0_dp
         else
@@ -526,12 +526,12 @@ contains
       end if
     end if
     if (this%indsp > 0) then
-      if (ischeme /= TIME_SCHEME_IMEX_CNAB) then
-      ! -- BDF1 / BDF2
-      rhs_vec%array => this%rhs
-      rhs_vec%size = size(this%rhs)
-      call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_sln, &
-                            this%idxglo, rhs_vec, this%x)
+      if (.not. (ischeme == TIME_SCHEME_IMEX_CNAB .or. ischeme == TIME_SCHEME_IMEX_CNLF)) then
+        ! -- BDF1 / BDF2
+        rhs_vec%array => this%rhs
+        rhs_vec%size = size(this%rhs)
+        call this%dsp%dsp_fc(kiter, this%dis%nodes, this%nja, matrix_sln, &
+                              this%idxglo, rhs_vec, this%x)
       else
         ! -- IMEX
         c = 0.0_dp
@@ -541,10 +541,17 @@ contains
           c3 = 0.0_dp
         else
           r = delt / delt2
+          if (ischeme == TIME_SCHEME_IMEX_CNAB) then
           ! CNAB
-          c1 = 0.5_dp
-          c2 = 0.5_dp
-          c3 = 0.0_dp
+            c1 = 0.5_dp
+            c2 = 0.5_dp
+            c3 = 0.0_dp
+          elseif (ischeme == TIME_SCHEME_IMEX_CNLF) then
+          ! CNLF
+            c1 = 0.5_dp * 1.0_dp / r
+            c2 = 0.5_dp * (1.0_dp - 1.0_dp / r)
+            c3 = 0.5_dp * 1.0_dp
+          end if
           ! MCNAB
           ! c1 = (8.0_dp * r + 1.0_dp) / (16.0_dp * r)
           ! c2 = (7.0_dp * r - 1.0_dp) / (16.0_dp * r)

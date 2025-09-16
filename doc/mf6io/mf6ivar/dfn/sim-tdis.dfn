@@ -62,7 +62,7 @@ description defines an adaptive time step (ATS) input file defining ATS controls
 block options
 name scheme
 type string
-valid implicit-euler imex-euler bdf2 imex-bdf2 imex-cnab
+valid implicit-euler imex-euler bdf2 imex-bdf2 imex-cnab, imex-cnlf
 reader urword
 optional true
 longname time scheme

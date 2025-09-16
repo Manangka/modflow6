@@ -246,11 +246,15 @@ contains
         a1 = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
         a2 = -(1.0_dp + r)
         a3 = r ** 2.0_dp / (1.0_dp + r)
-      else
+      elseif (ischeme == TIME_SCHEME_IMEX_CNAB) then
         ! CNAB
         a1 = 1.0_dp
         a2 = -1.0_dp
         a3 = 0.0_dp
+      elseif (ischeme == TIME_SCHEME_IMEX_CNLF) then
+        a1 = (1.0_dp / (1.0_dp + r))
+        a2 = (r - 1.0_dp)
+        a3 = -(r ** 2.0_dp) / (1.0_dp + r)
       end if
     end if
     a1 = a1 / delt
@@ -282,7 +286,8 @@ contains
       rhs(n) = rhs(n) + rrhs
 
       if ((.not. first) .and. &
-        ((ischeme == TIME_SCHEME_BDF2) .or. (ischeme == TIME_SCHEME_IMEX_BDF2) .or. (ischeme == TIME_SCHEME_IMEX_CNAB))) then
+        ((ischeme == TIME_SCHEME_BDF2) .or. (ischeme == TIME_SCHEME_IMEX_BDF2) .or. &
+          (ischeme == TIME_SCHEME_IMEX_CNAB) .or. (ischeme == TIME_SCHEME_IMEX_CNLF))) then
         rrhs = vold2 * a3 * cold2(n)
         rhs(n) = rhs(n) + rrhs
       end if
