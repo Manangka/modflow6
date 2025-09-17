@@ -180,13 +180,13 @@ contains
     min_phi => this%min_max_phi%get_min(iup)
     max_phi => this%min_max_phi%get_max(iup)
 
-    if (c_virtual > max_phi) then
-      c_virtual = max_phi
-    end if
+    ! if (c_virtual > max_phi) then
+    !   c_virtual = max_phi
+    ! end if
 
-    if (c_virtual < max(min_phi, DZERO)) then
-      c_virtual = max(min_phi, DZERO)
-    end if
+    ! if (c_virtual < max(min_phi, DZERO)) then
+    !   c_virtual = max(min_phi, DZERO)
+    ! end if
     !
     ! -- Compute smoothness factor
     smooth = (this%phi(iup) - c_virtual) / (this%phi(idn) - this%phi(iup))

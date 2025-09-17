@@ -10,6 +10,7 @@ module TspAdvModule
   ! -- Gradient schemes
   use IGradient, only: IGradientType
   use LeastSquaresGradientModule, only: LeastSquaresGradientType
+  use LeastSquaresGradientBoundaryModule, only: LeastSquaresGradientBoundaryType
   use CachedGradientModule, only: CachedGradientType
   ! -- Interpolation schemes
   use InterpolationSchemeInterfaceModule, only: InterpolationSchemeInterface, &
@@ -141,6 +142,7 @@ contains
         TVDSchemeType(this%dis, this%fmi, this%ibound)
     case (ADV_SCHEME_UTVD)
       gradient = LeastSquaresGradientType(this%dis)
+      ! gradient = LeastSquaresGradientBoundaryType(this%dis)
       this%gradient = CachedGradientType(gradient, this%dis)
       this%face_interpolation = &
         UTVDSchemeType(this%dis, this%fmi, this%gradient)
