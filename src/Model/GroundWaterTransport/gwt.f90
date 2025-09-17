@@ -352,17 +352,30 @@ contains
   subroutine gwt_ad(this)
     ! -- modules
     use SimVariablesModule, only: isimcheck, iFailedStepRetry
+    use TdisModule, only: ischeme
+    use TimeSchemeEnumModule
     ! -- dummy
     class(GwtModelType) :: this
     class(BndType), pointer :: packobj
     ! -- local
     integer(I4B) :: irestore
     integer(I4B) :: ip, n
+    real(DP) :: eps
+    real(DP) :: gamma
     !
     ! -- Reset state variable
     irestore = 0
     if (iFailedStepRetry > 0) irestore = 1
     if (irestore == 0) then
+      if (ischeme == TIME_SCHEME_IMEX_CNLF) then
+        eps = 0.05_dp
+        gamma = 0.0_dp
+        do n = 1, this%dis%nodes
+          this%xold(n) = this%xold(n) &
+            + eps * (this%xold2(n) - 2.0_dp * this%xold(n) + this%x(n)) &
+            - gamma * eps * (this%x(n) - this%xold2(n))
+        end do
+      end if
       !
       ! -- copy xold into xold2
       do n = 1, this%dis%nodes
@@ -534,7 +547,6 @@ contains
                               this%idxglo, rhs_vec, this%x)
       else
         ! -- IMEX
-        c = 0.0_dp
         if (first) then
           c1 = 0.5_dp
           c2 = 0.5_dp
