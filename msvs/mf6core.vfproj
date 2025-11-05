@@ -263,6 +263,7 @@
 		<File RelativePath="..\src\Model\Connection\qsort_inline.inc"/>
 		<File RelativePath="..\src\Model\Connection\SpatialModelConnection.f90"/></Filter>
 		<Filter Name="Discretization">
+		<File RelativePath="..\src\Model\Discretization\BoundaryFaces.f90"/>
 		<File RelativePath="..\src\Model\Discretization\Dis.f90"/>
 		<File RelativePath="..\src\Model\Discretization\Dis2d.f90"/>
 		<File RelativePath="..\src\Model\Discretization\Disu.f90"/>
@@ -387,7 +388,9 @@
 		<Filter Name="Gradient">
 		<File RelativePath="..\src\Model\TransportModel\Gradient\CachedGradient.f90"/>
 		<File RelativePath="..\src\Model\TransportModel\Gradient\IGradient.f90"/>
-		<File RelativePath="..\src\Model\TransportModel\Gradient\LeastSquaresGradient.f90"/></Filter>
+		<File RelativePath="..\src\Model\TransportModel\Gradient\LeastSquaresGradient.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Gradient\LeastSquaresGradientBoundary.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Gradient\LeastSquaresGradientExtended.f90"/></Filter>
 		<Filter Name="InterpolationScheme">
 		<File RelativePath="..\src\Model\TransportModel\InterpolationScheme\AdvSchemeEnum.f90"/>
 		<File RelativePath="..\src\Model\TransportModel\InterpolationScheme\CentralDifferenceScheme.f90"/>

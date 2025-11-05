@@ -6,7 +6,7 @@ module BoundaryFacesModule
   use BaseDisModule, only: DisBaseType
   use DisuModule, only: DisuType
   use DisUtilsModule, only: number_connected_faces, number_boundary_faces, &
-                           number_faces, cell_center
+                            number_faces, cell_center
   use LinearAlgebraUtilsModule, only: cross_product
   use SVDModule, only: SVD
 
@@ -57,23 +57,25 @@ contains
       ! Check if the discretization package is compatible with the TVD scheme
       if (dis%icondir == 0) then
         has_warnings = .true.
-        call store_warning('Vertices not specified for discretization ' // &
-        'package, but TVD is active. Vertices must be specified in ' // &
-        'discretization package in order to use TVD. Failing to do so may ' // &
-        'result in inaccurate results at the boundary.')
+        call store_warning( &
+          'Vertices not specified for discretization '// &
+          'package, but TVD is active. Vertices must be specified in '// &
+          'discretization package in order to use TVD. Failing to do so may '// &
+          'result in inaccurate results at the boundary.')
       end if
       if (dis%iangledegx == 0) then
         has_warnings = .true.
-        call store_warning('ANGLDEGX not specified for discretization ' // &
-        'package, but TVD is active. ANGLDEGX must be specified in ' // &
-        'discretization package in order to use TVD. Failing to do so may ' // &
-        'result in inaccurate results at the boundary.')
+        call store_warning( &
+          'ANGLDEGX not specified for discretization '// &
+          'package, but TVD is active. ANGLDEGX must be specified in '// &
+          'discretization package in order to use TVD. Failing to do so may '// &
+          'result in inaccurate results at the boundary.')
       end if
 
       ! If the discretization doesn't has all the info needed we don't create the boundary faces.
       ! This may impact the results because the cell gradient at the boundary is not computed
       ! correctly.
-      if (has_warnings) then  
+      if (has_warnings) then
         call create_empty_boundary_cells(boundary_cells, dis)
         return
       end if
@@ -153,7 +155,7 @@ contains
     real(DP), dimension(:, :), allocatable :: Vt
     real(DP), dimension(:, :), allocatable :: sigma
     integer(I4B) :: iedge
-    real(DP) :: Matrix(2,2)
+    real(DP) :: Matrix(2, 2)
 
     ! Allocate memory
     nodes = dis%nodes
@@ -168,7 +170,6 @@ contains
       ! Increment ia for the new boundary cells
       local_boundary_face_count = number_boundary_faces(dis, n)
       this%ia(n + 1) = this%ia(n) + local_boundary_face_count
-      
 
       if (local_boundary_face_count == 0) cycle
 
@@ -199,17 +200,18 @@ contains
           do iedge = 1, size(polyverts, 2) - 1
             Matrix = transpose(polyverts(:, [iedge, iedge + 1]))
             CALL SVD(Matrix, U, sigma, Vt)
-            area = area +  sigma(1,1) * sigma(2,2)
-         end do
-         area = area / 2.0_dp
+            area = area + sigma(1, 1) * sigma(2, 2)
+          end do
+          area = area / 2.0_dp
         end if
 
         this%faces(boundary_cell_id)%area = area
 
         ! Compute cl1
-        this%faces(boundary_cell_id)%cl1 = norm2( &
-          this%faces(boundary_cell_id)%xf - [dis%xc(n), dis%yc(n), (dis%top(n) + dis%bot(n)) / 2.0_dp])
-
+        this%faces(boundary_cell_id)%cl1 = &
+          norm2( &
+          this%faces(boundary_cell_id)%xf &
+          - [dis%xc(n), dis%yc(n), (dis%top(n) + dis%bot(n)) / 2.0_dp])
 
         boundary_cell_id = boundary_cell_id + 1
       end do
@@ -279,7 +281,7 @@ contains
     ! When we find the edge we unflag it as a ghost cell
     do ipos = dis%con%ia(n) + 1, dis%con%ia(n + 1) - 1
       m = dis%con%ja(ipos)
-      
+
       ! Determine connection direction.
       ! Horizontal and vertical connections are treated differently
       isympos = dis%con%jas(ipos)
@@ -339,14 +341,18 @@ contains
     ! The top and the bottom are not really edges but we treat them as such
     ! We only need a line on the top/bottom to reflect the centroid over
     if (is_ghost_boundary(num_sides + 1)) then
-      boundary_edges(ipos, 1, :) = [dis%xc(n)-0.5_dp, dis%yc(n)-0.5_dp, dis%bot(n)]
-      boundary_edges(ipos, 2, :) = [dis%xc(n)+0.5_dp, dis%yc(n)+0.5_dp, dis%bot(n)]
+      boundary_edges(ipos, 1, :) = &
+        [dis%xc(n) - 0.5_dp, dis%yc(n) - 0.5_dp, dis%bot(n)]
+      boundary_edges(ipos, 2, :) = &
+        [dis%xc(n) + 0.5_dp, dis%yc(n) + 0.5_dp, dis%bot(n)]
       ipos = ipos + 1
     end if
 
     if (is_ghost_boundary(num_sides + 2)) then
-      boundary_edges(ipos, 1, :) = [dis%xc(n)-0.5_dp, dis%yc(n)-0.5_dp, dis%top(n)]
-      boundary_edges(ipos, 2, :) = [dis%xc(n)+0.5_dp, dis%yc(n)+0.5_dp, dis%top(n)]
+      boundary_edges(ipos, 1, :) = &
+        [dis%xc(n) - 0.5_dp, dis%yc(n) - 0.5_dp, dis%top(n)]
+      boundary_edges(ipos, 2, :) = &
+        [dis%xc(n) + 0.5_dp, dis%yc(n) + 0.5_dp, dis%top(n)]
       ipos = ipos + 1
     end if
 

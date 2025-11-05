@@ -17,7 +17,7 @@ module DisUtilsModule
   private :: number_unique_connected_faces
 
   public :: number_boundary_faces
-    private :: number_local_boundary_faces
+  private :: number_local_boundary_faces
   private :: number_global_boundary_faces
 
 contains

@@ -40,19 +40,20 @@ SOURCEDIR33=../src/Utilities/Export
 SOURCEDIR34=../src/Utilities/Idm
 SOURCEDIR35=../src/Utilities/Idm/mf6blockfile
 SOURCEDIR36=../src/Utilities/Idm/netcdf
-SOURCEDIR37=../src/Utilities/Libraries
-SOURCEDIR38=../src/Utilities/Libraries/blas
-SOURCEDIR39=../src/Utilities/Libraries/daglib
-SOURCEDIR40=../src/Utilities/Libraries/rcm
-SOURCEDIR41=../src/Utilities/Libraries/sparsekit
-SOURCEDIR42=../src/Utilities/Libraries/sparskit2
-SOURCEDIR43=../src/Utilities/Matrix
-SOURCEDIR44=../src/Utilities/Memory
-SOURCEDIR45=../src/Utilities/Observation
-SOURCEDIR46=../src/Utilities/OutputControl
-SOURCEDIR47=../src/Utilities/Performance
-SOURCEDIR48=../src/Utilities/TimeSeries
-SOURCEDIR49=../src/Utilities/Vector
+SOURCEDIR37=../src/Utilities/InterpolationScheme
+SOURCEDIR38=../src/Utilities/Libraries
+SOURCEDIR39=../src/Utilities/Libraries/blas
+SOURCEDIR40=../src/Utilities/Libraries/daglib
+SOURCEDIR41=../src/Utilities/Libraries/rcm
+SOURCEDIR42=../src/Utilities/Libraries/sparsekit
+SOURCEDIR43=../src/Utilities/Libraries/sparskit2
+SOURCEDIR44=../src/Utilities/Matrix
+SOURCEDIR45=../src/Utilities/Memory
+SOURCEDIR46=../src/Utilities/Observation
+SOURCEDIR47=../src/Utilities/OutputControl
+SOURCEDIR48=../src/Utilities/Performance
+SOURCEDIR49=../src/Utilities/TimeSeries
+SOURCEDIR50=../src/Utilities/Vector
 
 VPATH = \
 ${SOURCEDIR1} \
@@ -103,7 +104,8 @@ ${SOURCEDIR45} \
 ${SOURCEDIR46} \
 ${SOURCEDIR47} \
 ${SOURCEDIR48} \
-${SOURCEDIR49} 
+${SOURCEDIR49} \
+${SOURCEDIR50} 
 
 .SUFFIXES: .f90 .F90 .o
 
@@ -339,6 +341,7 @@ $(OBJDIR)/MethodSubcellTernary.o \
 $(OBJDIR)/MethodSubcellPollock.o \
 $(OBJDIR)/TimeStepSelect.o \
 $(OBJDIR)/LinearAlgebraUtils.o \
+$(OBJDIR)/tsp-fmi.o \
 $(OBJDIR)/SfrCrossSectionUtils.o \
 $(OBJDIR)/MethodSubcellPool.o \
 $(OBJDIR)/CellPoly.o \
@@ -346,8 +349,8 @@ $(OBJDIR)/CellRectQuad.o \
 $(OBJDIR)/CellRect.o \
 $(OBJDIR)/SwfCxsUtils.o \
 $(OBJDIR)/PrintSaveManager.o \
-$(OBJDIR)/tsp-fmi.o \
 $(OBJDIR)/SingularValueDecomposition.o \
+$(OBJDIR)/DisUtils.o \
 $(OBJDIR)/SfrCrossSectionManager.o \
 $(OBJDIR)/dag_module.o \
 $(OBJDIR)/BoundaryPackageExt.o \
@@ -362,8 +365,8 @@ $(OBJDIR)/gwf-ic.o \
 $(OBJDIR)/LocalCellExtrema.o \
 $(OBJDIR)/InterpolationSchemeInterface.o \
 $(OBJDIR)/IGradient.o \
-$(OBJDIR)/DisUtils.o \
 $(OBJDIR)/PseudoInverse.o \
+$(OBJDIR)/BoundaryFaces.o \
 $(OBJDIR)/UzfEtUtil.o \
 $(OBJDIR)/Xt3dAlgorithm.o \
 $(OBJDIR)/TvBase.o \
@@ -390,6 +393,8 @@ $(OBJDIR)/UpstreamScheme.o \
 $(OBJDIR)/TVDScheme.o \
 $(OBJDIR)/TspAdvOptions.o \
 $(OBJDIR)/LeastSquaresGradient.o \
+$(OBJDIR)/LeastSquaresGradientExtended.o \
+$(OBJDIR)/LeastSquaresGradientBoundary.o \
 $(OBJDIR)/CentralDifferenceScheme.o \
 $(OBJDIR)/CachedGradient.o \
 $(OBJDIR)/AdvSchemeEnum.o \

@@ -289,6 +289,7 @@ modflow_sources = files(
     'Model' / 'TransportModel' / 'Gradient' / 'IGradient.f90',
     'Model' / 'TransportModel' / 'Gradient' / 'LeastSquaresGradient.f90',
     'Model' / 'TransportModel' / 'Gradient' / 'LeastSquaresGradientBoundary.f90',
+    'Model' / 'TransportModel' / 'Gradient' / 'LeastSquaresGradientExtended.f90',
     'Model' / 'TransportModel' / 'InterpolationScheme' / 'AdvSchemeEnum.f90',
     'Model' / 'TransportModel' / 'InterpolationScheme' / 'CentralDifferenceScheme.f90',
     'Model' / 'TransportModel' / 'InterpolationScheme' / 'InterpolationSchemeInterface.f90',

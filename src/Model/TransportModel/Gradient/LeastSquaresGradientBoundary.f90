@@ -10,7 +10,7 @@ module LeastSquaresGradientBoundaryModule
 
   implicit none
   private
-  
+
   public :: LeastSquaresGradientBoundaryType
 
   type Array2D
@@ -45,8 +45,8 @@ contains
 
     gradient%dis => dis
     nodes = dis%nodes
-    
-     ! -- Create boundary Cells
+
+    ! -- Create boundary Cells
     gradient%boundary_faces = BoundaryFacesType(dis)
 
     ! -- Compute the gradient operator
