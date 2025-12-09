@@ -93,7 +93,7 @@ def build_models(idx, test):
         gwt,
         budget_filerecord=f"{gwtname}.cbc",
         concentration_filerecord=f"{gwtname}.ucn",
-        concentrationprintrecord=[("COLUMNS", 10, "WIDTH", 15, "DIGITS", 6, "GENERAL")],
+        concentrationprintrecord=[("COLUMNS", 10, "WIDTH", 15, "DIGITS", 8, "GENERAL")],
         saverecord=[("CONCENTRATION", "LAST"), ("BUDGET", "LAST")],
         printrecord=[("CONCENTRATION", "LAST"), ("BUDGET", "LAST")],
     )
@@ -112,7 +112,7 @@ def check_output(idx, test):
     # The answer 1
     cres = np.array([10.0])
     msg = f"simulated concentrations do not match with known solution. {conc} {cres}"
-    assert np.allclose(cres, conc.flatten()), msg
+    assert np.allclose(cres, conc.flatten(), atol=1.0e-8), msg
 
 
 @pytest.mark.parametrize("idx, name", enumerate(cases))

@@ -20,6 +20,7 @@ module GwtModule
   use BudgetModule, only: BudgetType
   use TransportModelModule
   use MatrixBaseModule
+  use CircularBufferModule, only: CircularBufferType
 
   implicit none
 
@@ -39,6 +40,7 @@ module GwtModule
     type(GwtDspType), pointer :: dsp => null() ! dispersion package
     integer(I4B), pointer :: inmst => null() ! unit number MST
     integer(I4B), pointer :: indsp => null() ! DSP enabled flag
+    class(CircularBufferType), pointer :: gwfsat_buffer => null() !circular buffer for storing previous time step values
 
   contains
 
@@ -146,11 +148,13 @@ contains
   subroutine gwt_df(this)
     ! -- modules
     use SimModule, only: store_error
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtModelType) :: this
     ! -- local
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
+    integer(I4B) :: num_steps
     !
     ! -- Define packages and utility objects
     call this%dis%dis_df()
@@ -180,6 +184,9 @@ contains
     !
     ! -- Allocate model arrays, now that neq and nja are assigned
     call this%allocate_arrays()
+    ! -- Allocate buffers
+    num_steps = time_scheme%get_num_steps()
+    allocate( this%gwfsat_buffer, source=CircularBufferType(num_steps, this%neq, 'GWFSATOLD_BUFFER', this%memoryPath))
     !
     ! -- Define packages and assign iout for time series managers
     do ip = 1, this%bndlist%Count()
@@ -188,6 +195,10 @@ contains
       packobj%TsManager%iout = this%iout
       packobj%TasManager%iout = this%iout
     end do
+    !
+    ! -- Allocate buffers
+    num_steps = time_scheme%get_num_steps()
+    allocate( this%xold_buffer, source=CircularBufferType(num_steps, this%neq, 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
     call this%obs%obs_df(this%iout, this%name, 'GWT', this%dis)
@@ -372,6 +383,11 @@ contains
           this%xold(n) = this%x(n)
         end if
       end do
+      !
+      ! TODO: Do I need to zero out xold for inactive nodes?
+      ! TODO: array x can be larger than xold (which is size neq). How is this possible?
+      call this%xold_buffer%add(this%x)
+      
     else
       !
       ! -- copy xold into x if this time step is a redo
@@ -382,6 +398,7 @@ contains
     !
     ! -- Advance fmi
     call this%fmi%fmi_ad(this%x)
+    call this%gwfsat_buffer%add(this%fmi%gwfsat_old)
     !
     ! -- Advance
     if (this%indsp > 0) call this%dsp%dsp_ad()
@@ -440,7 +457,7 @@ contains
       call this%mvt%mvt_fc(this%x, this%x)
     end if
     if (this%inmst > 0) then
-      call this%mst%mst_fc(this%dis%nodes, this%xold, this%nja, matrix_sln, &
+      call this%mst%mst_fc(this%dis%nodes, this%xold_buffer, this%gwfsat_buffer, this%nja, matrix_sln, &
                            this%idxglo, this%x, this%rhs, kiter)
     end if
     if (this%inadv > 0) then
@@ -514,8 +531,8 @@ contains
     end do
     if (this%inadv > 0) call this%adv%adv_cq(this%x, this%flowja)
     if (this%indsp > 0) call this%dsp%dsp_cq(this%x, this%flowja)
-    if (this%inmst > 0) call this%mst%mst_cq(this%dis%nodes, this%x, this%xold, &
-                                             this%flowja)
+    if (this%inmst > 0) call this%mst%mst_cq(this%dis%nodes, this%x, this%xold_buffer, this%gwfsat_buffer, &
+                                              this%flowja)
     if (this%inssm > 0) call this%ssm%ssm_cq(this%flowja)
     if (this%infmi > 0) call this%fmi%fmi_cq(this%x, this%flowja)
     !
@@ -664,6 +681,9 @@ contains
     !
     ! -- NumericalModelType
     call this%NumericalModelType%model_da()
+    !
+    ! -- Buffers
+    deallocate (this%gwfsat_buffer)
   end subroutine gwt_da
 
   !> @brief GroundWater Transport Model Budget Entry

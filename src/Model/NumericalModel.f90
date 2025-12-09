@@ -10,6 +10,7 @@ module NumericalModelModule
   use VersionModule, only: write_listfile_header
   use MatrixBaseModule
   use VectorBaseModule
+  use CircularBufferModule, only: CircularBufferType
 
   implicit none
   private
@@ -28,7 +29,8 @@ module NumericalModelModule
     real(DP), dimension(:), pointer, contiguous :: rhs => null() !right-hand side vector
     real(DP), dimension(:), pointer, contiguous :: cond => null() !conductance matrix
     integer(I4B), dimension(:), pointer, contiguous :: idxglo => null() !pointer to position in solution matrix
-    real(DP), dimension(:), pointer, contiguous :: xold => null() !dependent variable for previous timestep
+    real(DP), dimension(:), pointer, contiguous :: xold => null() !dependent variable for current timestep
+    class(CircularBufferType), pointer :: xold_buffer => null() !circular buffer for storing previous time step values
     real(DP), dimension(:), pointer, contiguous :: flowja => null() !intercell flows
     integer(I4B), dimension(:), pointer, contiguous :: ibound => null() !ibound array
     !
@@ -240,6 +242,7 @@ contains
     ! -- derived types
     call this%bndlist%Clear()
     deallocate (this%bndlist)
+    ! deallocate (this%xold_buffer)
     !
     ! -- nullify pointers
     call mem_deallocate(this%x, 'X', this%memoryPath)

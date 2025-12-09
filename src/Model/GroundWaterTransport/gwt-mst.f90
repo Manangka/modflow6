@@ -19,6 +19,7 @@ module GwtMstModule
   use NumericalPackageModule, only: NumericalPackageType
   use BaseDisModule, only: DisBaseType
   use TspFmiModule, only: TspFmiType
+  use CircularBufferModule, only: CircularBufferType
 
   implicit none
   public :: GwtMstType
@@ -173,22 +174,26 @@ contains
   !!
   !!  Method to calculate and fill coefficients for the package.
   !<
-  subroutine mst_fc(this, nodes, cold, nja, matrix_sln, idxglo, cnew, &
+  subroutine mst_fc(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, cnew, &
                     rhs, kiter)
     ! -- modules
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at end of second last time step
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     integer(I4B), intent(in) :: nja !< number of GWT connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
     integer(I4B), intent(in) :: kiter !< solution outer iteration number
+    ! -- local
+    real(DP), pointer, dimension(:) :: cold !< concentration at end of last time step
+    cold => cold_buffer%rget(1)
     !
     ! -- storage contribution
-    call this%mst_fc_sto(nodes, cold, nja, matrix_sln, idxglo, rhs)
+    call this%mst_fc_sto(nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, rhs)
     !
     ! -- decay contribution
     if (this%idcy /= DECAY_OFF) then
@@ -212,45 +217,55 @@ contains
   !!
   !!  Method to calculate and fill storage coefficients for the package.
   !<
-  subroutine mst_fc_sto(this, nodes, cold, nja, matrix_sln, idxglo, rhs)
+  subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     integer(I4B), intent(in) :: nja !< number of GWT connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
     ! -- local
     integer(I4B) :: n, idiag
-    real(DP) :: tled
-    real(DP) :: hhcof, rrhs
-    real(DP) :: vnew, vold
-    !
-    ! -- set variables
-    tled = DONE / delt
+    real(DP) :: Vcell, Vwater
+    real(DP) :: coeff
+    real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
+    real(DP) :: weight
+    real(DP), pointer :: gwfsat(:)
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
       !
       ! -- skip if transport inactive
       if (this%ibound(n) <= 0) cycle
-      !
-      ! -- calculate new and old water volumes
-      vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
-             this%fmi%gwfsat(n) * this%thetam(n)
-      vold = vnew
-      if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
-      !
-      ! -- add terms to diagonal and rhs accumulators
-      hhcof = -vnew * tled
-      rrhs = -vold * tled * cold(n)
-      idiag = this%dis%con%ia(n)
-      call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
-      rhs(n) = rhs(n) + rrhs
+
+      Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
+      do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
+          if (step_idx == 1) then
+            gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
+
+            Vwater = Vcell * gwfsat(n) * this%thetam(n)
+            weight = time_scheme%get_weight(step_idx)
+            coeff = Vwater * weight
+
+            idiag = this%dis%con%ia(n)
+            call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
+          else
+            cold => cold_buffer%rget(step_idx - 1)
+            gwfsat => gwfsat_buffer%rget(step_idx - 1)
+            
+            Vwater = Vcell * gwfsat(n) * this%thetam(n)
+            weight = time_scheme%get_weight(step_idx)
+            coeff = Vwater * weight
+            
+            rhs(n) = rhs(n) + coeff * cold(n)
+          end if
+      end do
     end do
   end subroutine mst_fc_sto
 
@@ -554,16 +569,20 @@ contains
   !!
   !!  Method to calculate flows for the package.
   !<
-  subroutine mst_cq(this, nodes, cnew, cold, flowja)
+  subroutine mst_cq(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at end of last time step
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
+    ! -- local
+    real(DP), pointer, dimension(:) :: cold !< concentration at end of last time step
+    cold => cold_buffer%rget(1)
     !
     ! - storage
-    call this%mst_cq_sto(nodes, cnew, cold, flowja)
+    call this%mst_cq_sto(nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     !
     ! -- decay
     if (this%idcy /= DECAY_OFF) then
@@ -590,47 +609,61 @@ contains
   !!
   !!  Method to calculate storage terms for the package.
   !<
-  subroutine mst_cq_sto(this, nodes, cnew, cold, flowja)
+  subroutine mst_cq_sto(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at previous time steps
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     ! -- local
     integer(I4B) :: n
     integer(I4B) :: idiag
     real(DP) :: rate
-    real(DP) :: tled
-    real(DP) :: vnew, vold
-    real(DP) :: hhcof, rrhs
-    !
-    ! -- initialize
-    tled = DONE / delt
+    real(DP) :: Vcell, Vwater
+    real(DP) :: coeff
+    real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
+    real(DP) :: weight
+    real(DP), pointer :: gwfsat(:)
     !
     ! -- Calculate storage change
     do n = 1, nodes
       this%ratesto(n) = DZERO
+      rate = 0.0_dp
       !
       ! -- skip if transport inactive
       if (this%ibound(n) <= 0) cycle
-      !
-      ! -- calculate new and old water volumes
-      vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
-             this%fmi%gwfsat(n) * this%thetam(n)
-      vold = vnew
-      if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
-      !
-      ! -- calculate rate
-      hhcof = -vnew * tled
-      rrhs = -vold * tled * cold(n)
-      rate = hhcof * cnew(n) - rrhs
+      
+      Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
+      do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
+          if (step_idx == 1) then
+            gwfsat => this%fmi%gwfsat
+          
+            Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
+            weight = time_scheme%get_weight(step_idx)
+            coeff = Vwater * weight
+
+            rate = rate - coeff * cnew(n)
+          else
+            cold => cold_buffer%rget(step_idx - 1)
+            gwfsat => gwfsat_buffer%rget(step_idx - 1)
+
+            Vwater = Vcell * gwfsat(n) * this%thetam(n)
+            weight = time_scheme%get_weight(step_idx)
+            coeff = Vwater * weight
+
+            rate = rate - coeff * cold(n)
+          end if
+      end do
+
       this%ratesto(n) = rate
       idiag = this%dis%con%ia(n)
       flowja(idiag) = flowja(idiag) + rate
+
     end do
   end subroutine mst_cq_sto
 

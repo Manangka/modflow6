@@ -2,11 +2,294 @@
 !convert this to a derived type?  May not be necessary since only
 !one of them is needed.
 
-module TdisModule
+module TimeSchemeEnumModule
+  use KindModule, only: I4B
 
+  implicit none
+
+  ! Advection scheme codes
+  integer(I4B), parameter :: TIME_SCHEME_EULER = 0
+  integer(I4B), parameter :: TIME_SCHEME_BDF2 = 1
+
+end module TimeSchemeEnumModule
+
+module TimeSchemeInterfaceModule
+  use KindModule, only: I4B, DP
+
+  implicit none
+  private
+
+  public :: TimeSchemeInterface
+
+  type, abstract :: TimeSchemeInterface
+  contains
+    procedure(update_delt), deferred :: update_delt
+    procedure(get_num_steps), deferred :: get_num_steps
+    procedure(get_time_iteration_steps), deferred :: get_time_iteration_steps
+    procedure(get_weight), deferred :: get_weight
+
+  end type TimeSchemeInterface
+
+  abstract interface
+    subroutine update_delt(this, new_delt)
+      import :: TimeSchemeInterface
+      import :: DP
+      class(TimeSchemeInterface), intent(inout) :: this
+      real(DP), intent(in) :: new_delt
+    end subroutine update_delt
+  end interface
+
+  abstract interface
+    function get_num_steps(this) result(num_steps)
+      import :: TimeSchemeInterface
+      import :: I4B
+      class(TimeSchemeInterface), intent(in) :: this
+      integer(I4B) :: num_steps
+    end function get_num_steps
+  end interface
+
+  abstract interface
+    function get_time_iteration_steps(this) result(steps)
+      import :: TimeSchemeInterface
+      import :: I4B
+      class(TimeSchemeInterface), intent(in) :: this
+      integer(I4B) :: steps
+    end function get_time_iteration_steps
+  end interface
+
+  abstract interface
+    function get_weight(this, n) result(weight)
+      import :: TimeSchemeInterface
+      import :: I4B, DP
+      class(TimeSchemeInterface), intent(in) :: this
+      integer(I4B), intent(in) :: n
+      real(DP) :: weight
+    end function get_weight
+  end interface
+
+end module TimeSchemeInterfaceModule
+
+module ImplicitEulerSchemeModule
+    use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+    use KindModule, only: DP, I4B, LGP
+    use CircularBufferModule, only: CircularBufferType
+
+    implicit none
+    private
+
+    public :: ImplicitEulerSchemeType
+
+    type, extends(TimeSchemeInterface) :: ImplicitEulerSchemeType
+      private
+      class(CircularBufferType), pointer :: delt_buffer => null()
+      integer(I4B) :: num_steps = 1 !< number of sub-steps in the time step
+    contains
+      procedure :: update_delt
+      procedure :: get_num_steps
+      procedure :: get_time_iteration_steps
+      procedure :: get_weight
+      final :: destructor
+    end type ImplicitEulerSchemeType
+
+    interface ImplicitEulerSchemeType
+      module procedure constructor
+    end interface ImplicitEulerSchemeType
+
+contains
+
+  function constructor() Result(scheme)
+    type(ImplicitEulerSchemeType) :: scheme
+    ! -- dummy
+    ! -- local
+    allocate( scheme%delt_buffer, source=CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS'))
+
+  end function constructor
+
+  subroutine destructor(this)
+    ! -- dummy
+    type(ImplicitEulerSchemeType), intent(inout) :: this
+    deallocate(this%delt_buffer)
+
+  end subroutine destructor
+
+  subroutine update_delt(this, new_delt)
+    class(ImplicitEulerSchemeType), intent(inout) :: this
+    real(DP), intent(in) :: new_delt
+
+    call this%delt_buffer%add([new_delt])
+  end subroutine update_delt
+
+  function get_num_steps(this) result(num_steps)
+    class(ImplicitEulerSchemeType), intent(in) :: this
+    integer(I4B) :: num_steps
+
+    num_steps = this%num_steps
+  end function get_num_steps
+
+  function get_time_iteration_steps(this) result(steps)
+    ! -- dummy
+    class(ImplicitEulerSchemeType), intent(in) :: this
+    integer(I4B) :: steps
+    ! -- local
+      steps = 1
+      return
+
+  end function get_time_iteration_steps
+
+  function get_weight(this, n) result(weight)
+    use SimModule, only: store_error
+    ! -- dummy
+    class(ImplicitEulerSchemeType), intent(in) :: this
+    real(DP) :: weight
+    integer(I4B), intent(in) :: n
+    ! -- local
+    real(DP), pointer :: delt(:)
+
+    if (n == 1) then
+      weight = 1.0_dp
+    elseif (n == 2) then
+        weight = -1.0_dp
+    else
+      call store_error("Weight calculation error", terminate=.TRUE.)
+    end if
+
+    delt => this%delt_buffer%rget(1)
+    weight = weight / delt(1)
+   
+  end function get_weight
+
+end module ImplicitEulerSchemeModule
+
+module BDF2SchemeModule
+    use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+    use KindModule, only: DP, I4B, LGP
+    use CircularBufferModule, only: CircularBufferType
+
+    implicit none
+    private
+
+    public :: BDF2SchemeType
+
+    type, extends(TimeSchemeInterface) :: BDF2SchemeType
+      private
+      class(CircularBufferType), pointer :: delt_buffer => null()
+      integer(I4B), pointer :: kstp => null()
+      integer(I4B), pointer :: kper => null()
+      integer(I4B) :: num_steps = 2 !< number of sub-steps in the time step
+    contains
+      procedure :: update_delt
+      procedure :: get_num_steps
+      procedure :: get_time_iteration_steps
+      procedure :: get_weight
+      final :: destructor
+    end type BDF2SchemeType
+
+    interface BDF2SchemeType
+      module procedure constructor
+    end interface BDF2SchemeType
+
+contains
+  function constructor(kstp, kper) Result(scheme)
+    type(BDF2SchemeType) :: scheme
+    ! -- dummy
+    integer(I4B), pointer, intent(in) :: kstp
+    integer(I4B), pointer, intent(in) :: kper
+
+    scheme%kstp => kstp
+    scheme%kper => kper
+    allocate( scheme%delt_buffer, source=CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS'))
+
+  end function constructor
+
+  subroutine destructor(this)
+    ! -- dummy
+    type(BDF2SchemeType), intent(inout) :: this
+
+    deallocate(this%delt_buffer)
+
+  end subroutine destructor
+
+  subroutine update_delt(this, new_delt)
+    class(BDF2SchemeType), intent(inout) :: this
+    real(DP), intent(in) :: new_delt
+
+    call this%delt_buffer%add([new_delt])
+  end subroutine update_delt
+
+  function get_num_steps(this) result(num_steps)
+    class(BDF2SchemeType), intent(in) :: this
+    integer(I4B) :: num_steps
+
+    num_steps = this%num_steps
+  end function get_num_steps
+
+  function get_time_iteration_steps(this) result(steps)
+    ! -- dummy
+    class(BDF2SchemeType), intent(in) :: this
+    integer(I4B) :: steps
+    ! -- local
+    logical :: first
+
+    first = this%kstp == 1 .and. this%kper == 1
+
+    if (first) then
+      steps = 1
+      return
+    else
+      steps = 2
+      return
+    end if
+
+  end function get_time_iteration_steps
+
+  function get_weight(this, n) result(weight)
+    use SimModule, only: store_error
+    ! -- dummy
+    class(BDF2SchemeType), intent(in) :: this
+    real(DP) :: weight
+    integer(I4B), intent(in) :: n
+    ! -- local
+    logical :: first
+    real(DP) :: r
+    real(DP), pointer, dimension(:) :: delt, delt_prev
+
+    first = this%kstp == 1 .and. this%kper == 1
+    delt => this%delt_buffer%rget(1)
+
+    if (first) then
+      if (n == 1) then
+        weight = 1.0_dp
+      elseif (n == 2) then
+         weight = -1.0_dp
+      else
+        call store_error("Weight calculation error", terminate=.TRUE.)
+      end if
+    else  
+      delt_prev => this%delt_buffer%rget(2)
+      r = delt(1) / delt_prev(1)
+      if (n == 1) then
+         weight = (1.0_dp + 2.0_dp * r) / (1.0_dp + r)
+      elseif (n == 2) then
+         weight =  -(1.0_dp + r)
+      elseif (n == 3) then
+         weight = r**2 / (1.0_dp + r)
+      else
+        call store_error("Weight calculation error", terminate=.TRUE.)
+      end if
+    end if
+   
+    weight = weight / delt(1)
+
+  end function get_weight
+
+end module BDF2SchemeModule
+
+module TdisModule
+  use TimeSchemeEnumModule
   use KindModule, only: DP, I4B, LGP
   use SimVariablesModule, only: iout, isim_level
-  use ConstantsModule, only: LINELENGTH, LENDATETIME, LENMEMPATH, VALL
+  use ConstantsModule, only: LENVARNAME, LINELENGTH, LENDATETIME, LENMEMPATH, VALL
+  use TimeSchemeInterfaceModule, only: TimeSchemeInterface
   !
   implicit none
   !
@@ -27,6 +310,7 @@ module TdisModule
   logical(LGP), public, pointer :: endofperiod => null() !< flag indicating end of stress period
   logical(LGP), public, pointer :: endofsimulation => null() !< flag indicating end of simulation
   real(DP), public, pointer :: delt => null() !< length of the current time step
+  real(DP), public, pointer :: delt2 => null() !< length of the previous time step
   real(DP), public, pointer :: pertim => null() !< time relative to start of stress period
   real(DP), public, pointer :: topertim => null() !< simulation time at start of stress period
   real(DP), public, pointer :: totim => null() !< time relative to start of simulation
@@ -41,6 +325,8 @@ module TdisModule
   character(len=LENDATETIME), public, pointer :: datetime0 => null() !< starting date and time for the simulation
   character(len=LENMEMPATH), pointer :: input_mempath => null() !< input context mempath for tdis
   character(len=LINELENGTH), pointer :: input_fname => null() !< input filename for tdis
+  integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
+  class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
   !
 contains
 
@@ -51,10 +337,14 @@ contains
     use InputOutputModule, only: getunit, openfile
     use ConstantsModule, only: LINELENGTH, DZERO
     use AdaptiveTimeStepModule, only: ats_cr
+    use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
+    use BDF2SchemeModule, only: BDF2SchemeType
+    use SimModule, only: store_error, store_error_filename
     ! -- dummy
     character(len=*), intent(in) :: fname
     character(len=*), intent(in) :: inmempath
     ! -- local
+    real(DP) :: num_steps
     ! -- formats
     character(len=*), parameter :: fmtheader = &
      "(1X,/1X,'TDIS -- TEMPORAL DISCRETIZATION PACKAGE,',   /                  &
@@ -83,6 +373,18 @@ contains
     if (inats > 0) then
       call ats_cr(inats, nper)
     end if
+    !
+    ! -- Create time scheme instance
+    select case (itimescheme)
+      case (TIME_SCHEME_EULER)
+        allocate (time_scheme, source=ImplicitEulerSchemeType())
+      case (TIME_SCHEME_BDF2)
+        allocate (time_scheme, source=BDF2SchemeType(kstp, kper))
+      case default
+        call store_error("Unknown time scheme", terminate=.TRUE.)
+    end select
+    num_steps = time_scheme%get_num_steps()
+    
   end subroutine tdis_cr
 
   !> @brief Set kstp and kper
@@ -169,6 +471,7 @@ contains
     end if
     !
     ! -- Set delt
+    delt2 = delt
     if (adaptivePeriod) then
       call ats_set_delt(kstp, kper, pertim, perlen(kper), delt)
     else
@@ -184,6 +487,7 @@ contains
     totimc = totimsav
     totim = totimsav + delt
     pertim = pertimsav + delt
+    call time_scheme%update_delt(delt)
     !
     ! -- Set end of period indicator
     endofperiod = .false.
@@ -359,6 +663,7 @@ contains
     call mem_deallocate(endofperiod)
     call mem_deallocate(endofsimulation)
     call mem_deallocate(delt)
+    call mem_deallocate(delt2)
     call mem_deallocate(pertim)
     call mem_deallocate(topertim)
     call mem_deallocate(totim)
@@ -388,12 +693,17 @@ contains
     use MemoryManagerExtModule, only: mem_set_value
     use SourceCommonModule, only: filein_fname
     use SimTdisInputModule, only: SimTdisParamFoundType
+    use SimVariablesModule, only: errmsg
+    use SimModule, only: store_error, store_error_filename
     ! -- local
     type(SimTdisParamFoundType) :: found
     character(len=LINELENGTH), dimension(6) :: time_units = &
       &[character(len=LINELENGTH) :: 'UNDEFINED', 'SECONDS', 'MINUTES', 'HOURS', &
                                      'DAYS', 'YEARS']
+    character(len=LENVARNAME), dimension(2) :: scheme = &
+      &[character(len=LENVARNAME) :: 'EULER', 'BDF2']
     character(len=LINELENGTH) :: fname
+    logical(LGP) :: found_scheme
     ! -- formats
     character(len=*), parameter :: fmtitmuni = &
       &"(4x,'SIMULATION TIME UNIT IS ',A)"
@@ -408,6 +718,8 @@ contains
                        found%time_units)
     call mem_set_value(datetime0, 'START_DATE_TIME', input_mempath, &
                        found%start_date_time)
+    call mem_set_value(itimescheme, 'SCHEME', &
+                       input_mempath, scheme, found_scheme)
     !
     if (found%time_units) then
       !
@@ -449,6 +761,19 @@ contains
       write (iout, fmtdatetime0) datetime0
     end if
     !
+    if (found_scheme) then
+      ! should currently be set to index of scheme names
+      if (itimescheme == 0) then
+        write (errmsg, '(a, a)') &
+          'Unknown scheme, must be "EULER" or "BDF2"'
+        call store_error(errmsg)
+        call store_error_filename(input_fname)
+      else
+        ! scheme parameters are 0 based
+        itimescheme = itimescheme - 1
+      end if
+    end if
+    !
     write (iout, '(1x,a)') 'END OF TDIS OPTIONS'
   end subroutine tdis_source_options
 
@@ -469,6 +794,7 @@ contains
     call mem_allocate(endofperiod, 'ENDOFPERIOD', 'TDIS')
     call mem_allocate(endofsimulation, 'ENDOFSIMULATION', 'TDIS')
     call mem_allocate(delt, 'DELT', 'TDIS')
+    call mem_allocate(delt2, 'DELT2', 'TDIS')
     call mem_allocate(pertim, 'PERTIM', 'TDIS')
     call mem_allocate(topertim, 'TOPERTIM', 'TDIS')
     call mem_allocate(totim, 'TOTIM', 'TDIS')
@@ -477,6 +803,7 @@ contains
     call mem_allocate(totimsav, 'TOTIMSAV', 'TDIS')
     call mem_allocate(pertimsav, 'PERTIMSAV', 'TDIS')
     call mem_allocate(totalsimtime, 'TOTALSIMTIME', 'TDIS')
+    call mem_allocate(itimescheme, 'ITIMESCHEME', 'TDIS')
     !
     ! -- strings
     allocate (datetime0)
@@ -493,6 +820,7 @@ contains
     endofperiod = .true.
     endofsimulation = .false.
     delt = DZERO
+    delt2 = DZERO
     pertim = DZERO
     topertim = DZERO
     totim = DZERO
@@ -502,6 +830,7 @@ contains
     pertimsav = DZERO
     totalsimtime = DZERO
     datetime0 = ''
+    itimescheme = TIME_SCHEME_EULER
   end subroutine tdis_allocate_scalars
 
   !> @brief Allocate tdis arrays

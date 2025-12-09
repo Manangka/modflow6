@@ -85,6 +85,7 @@ module GwfNpfModule
     integer(I4B), pointer :: iwetdry => null() !< flag to indicate angle1 was read
     real(DP), dimension(:), pointer, contiguous :: wetdry => null() !< wetdry array
     real(DP), dimension(:), pointer, contiguous :: sat => null() !< saturation (0. to 1.) for each cell
+    real(DP), dimension(:), pointer, contiguous :: sat_old => null() !< saturation (0. to 1.) for each cell
     real(DP), dimension(:), pointer, contiguous :: condsat => null() !< saturated conductance (symmetric array)
     integer(I4B), dimension(:), pointer, contiguous :: ibotnode => null() !< bottom node used if igwfnewtonur /= 0
     ! spdis machinery:
@@ -392,6 +393,7 @@ contains
     integer(I4B), intent(in) :: irestore
     ! -- local
     integer(I4B) :: n
+    real(DP) :: satn
     !
     ! -- loop through all cells and set hold=bot if wettable cell is dry
     if (this%irewet > 0) then
@@ -408,6 +410,20 @@ contains
         hnew(n) = DHDRY
       end do
     end if
+    !
+    ! -- store old saturation
+    do n = 1, this%dis%nodes
+       if (this%icelltype(n) /= 0) then
+          if (this%ibound(n) == 0) then
+            satn = DZERO
+          else
+            call this%thksat(n, hold(n), satn)
+          end if
+        else
+          satn = DONE
+      end if
+      this%sat_old(n) = satn
+    end do
     !
     ! -- TVK
     if (this%intvk /= 0) then
@@ -1068,6 +1084,7 @@ contains
     call mem_deallocate(this%k22input)
     call mem_deallocate(this%k33input)
     call mem_deallocate(this%sat, 'SAT', this%memoryPath)
+    call mem_deallocate(this%sat_old, 'SAT_OLD', this%memoryPath)
     call mem_deallocate(this%condsat)
     call mem_deallocate(this%wetdry)
     call mem_deallocate(this%angle1)
@@ -1226,6 +1243,7 @@ contains
     call mem_allocate(this%icelltype, ncells, 'ICELLTYPE', this%memoryPath)
     call mem_allocate(this%k11, ncells, 'K11', this%memoryPath)
     call mem_allocate(this%sat, ncells, 'SAT', this%memoryPath)
+    call mem_allocate(this%sat_old, ncells, 'SAT_OLD', this%memoryPath)
     call mem_allocate(this%condsat, njas, 'CONDSAT', this%memoryPath)
     !
     ! -- Optional arrays dimensioned to full size initially
