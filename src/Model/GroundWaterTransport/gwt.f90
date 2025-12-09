@@ -184,9 +184,6 @@ contains
     !
     ! -- Allocate model arrays, now that neq and nja are assigned
     call this%allocate_arrays()
-    ! -- Allocate buffers
-    num_steps = time_scheme%get_num_steps()
-    allocate( this%gwfsat_buffer, source=CircularBufferType(num_steps, this%neq, 'GWFSATOLD_BUFFER', this%memoryPath))
     !
     ! -- Define packages and assign iout for time series managers
     do ip = 1, this%bndlist%Count()
@@ -198,6 +195,7 @@ contains
     !
     ! -- Allocate buffers
     num_steps = time_scheme%get_num_steps()
+    allocate( this%gwfsat_buffer, source=CircularBufferType(num_steps, this%neq, 'GWFSATOLD_BUFFER', this%memoryPath))
     allocate( this%xold_buffer, source=CircularBufferType(num_steps, this%neq, 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
@@ -385,9 +383,7 @@ contains
       end do
       !
       ! TODO: Do I need to zero out xold for inactive nodes?
-      ! TODO: array x can be larger than xold (which is size neq). How is this possible?
       call this%xold_buffer%add(this%x)
-      
     else
       !
       ! -- copy xold into x if this time step is a redo
@@ -532,7 +528,7 @@ contains
     if (this%inadv > 0) call this%adv%adv_cq(this%x, this%flowja)
     if (this%indsp > 0) call this%dsp%dsp_cq(this%x, this%flowja)
     if (this%inmst > 0) call this%mst%mst_cq(this%dis%nodes, this%x, this%xold_buffer, this%gwfsat_buffer, &
-                                              this%flowja)
+                                             this%flowja)
     if (this%inssm > 0) call this%ssm%ssm_cq(this%flowja)
     if (this%infmi > 0) call this%fmi%fmi_cq(this%x, this%flowja)
     !

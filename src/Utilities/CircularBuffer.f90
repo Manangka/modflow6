@@ -8,17 +8,17 @@ module CircularBufferModule
   public :: CircularBufferType
 
   type :: CircularBufferType
-    integer :: capacity      !< Maximum number of elements in the buffer
-    integer :: size = 0          !< Current number of elements in the buffer
-    integer :: head_index = 0    !< Index of the head element
-    real(DP), pointer, contiguous :: data(:,:) !< The buffer array
-  
+    integer :: capacity !< Maximum number of elements in the buffer
+    integer :: size = 0 !< Current number of elements in the buffer
+    integer :: head_index = 0 !< Index of the head element
+    real(DP), pointer, contiguous :: data(:, :) !< The buffer array
+
   contains
     procedure :: add
     procedure :: get
     procedure :: rget
-      ! procedure :: is_full
-      ! procedure :: is_empty
+    ! procedure :: is_full
+    ! procedure :: is_empty
     final :: destructor
   end type CircularBufferType
 
@@ -30,8 +30,8 @@ contains
   function constructor(capacity, neq, name, mem_path) Result(buffer)
     type(CircularBufferType) :: buffer
     ! -- dummy
-    integer(I4B), intent(in) :: capacity  ! -- maximum number of elements
-    integer(I4B), intent(in) :: neq       ! -- number of equations (size of each element)
+    integer(I4B), intent(in) :: capacity ! -- maximum number of elements
+    integer(I4B), intent(in) :: neq ! -- number of equations (size of each element)
     character(len=*), intent(in) :: name !< variable name
     character(len=*), intent(in) :: mem_path !< path where variable is stored
     ! -- local
@@ -45,7 +45,7 @@ contains
     ! -- dummy
     type(CircularBufferType), intent(inout) :: this
 
-    call mem_deallocate (this%data)
+    call mem_deallocate(this%data)
   end subroutine destructor
 
   subroutine add(this, element)
@@ -97,9 +97,7 @@ contains
 
     index = mod(this%head_index - n + this%capacity, this%capacity) + 1
     element => this%data(:, index)
-    
 
   end function rget
 
-  
 end module CircularBufferModule

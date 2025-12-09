@@ -413,14 +413,14 @@ contains
     !
     ! -- store old saturation
     do n = 1, this%dis%nodes
-       if (this%icelltype(n) /= 0) then
-          if (this%ibound(n) == 0) then
-            satn = DZERO
-          else
-            call this%thksat(n, hold(n), satn)
-          end if
+      if (this%icelltype(n) /= 0) then
+        if (this%ibound(n) == 0) then
+          satn = DZERO
         else
-          satn = DONE
+          call this%thksat(n, hold(n), satn)
+        end if
+      else
+        satn = DONE
       end if
       this%sat_old(n) = satn
     end do

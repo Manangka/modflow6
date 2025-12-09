@@ -246,25 +246,25 @@ contains
 
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
       do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
-          if (step_idx == 1) then
-            gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
+        if (step_idx == 1) then
+          gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
 
-            Vwater = Vcell * gwfsat(n) * this%thetam(n)
-            weight = time_scheme%get_weight(step_idx)
-            coeff = Vwater * weight
+          Vwater = Vcell * gwfsat(n) * this%thetam(n)
+          weight = time_scheme%get_weight(step_idx)
+          coeff = Vwater * weight
 
-            idiag = this%dis%con%ia(n)
-            call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
-          else
-            cold => cold_buffer%rget(step_idx - 1)
-            gwfsat => gwfsat_buffer%rget(step_idx - 1)
-            
-            Vwater = Vcell * gwfsat(n) * this%thetam(n)
-            weight = time_scheme%get_weight(step_idx)
-            coeff = Vwater * weight
-            
-            rhs(n) = rhs(n) + coeff * cold(n)
-          end if
+          idiag = this%dis%con%ia(n)
+          call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
+        else
+          cold => cold_buffer%rget(step_idx - 1)
+          gwfsat => gwfsat_buffer%rget(step_idx - 1)
+
+          Vwater = Vcell * gwfsat(n) * this%thetam(n)
+          weight = time_scheme%get_weight(step_idx)
+          coeff = Vwater * weight
+
+          rhs(n) = rhs(n) + coeff * cold(n)
+        end if
       end do
     end do
   end subroutine mst_fc_sto
@@ -637,27 +637,27 @@ contains
       !
       ! -- skip if transport inactive
       if (this%ibound(n) <= 0) cycle
-      
+
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
       do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
-          if (step_idx == 1) then
-            gwfsat => this%fmi%gwfsat
-          
-            Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
-            weight = time_scheme%get_weight(step_idx)
-            coeff = Vwater * weight
+        if (step_idx == 1) then
+          gwfsat => this%fmi%gwfsat
 
-            rate = rate - coeff * cnew(n)
-          else
-            cold => cold_buffer%rget(step_idx - 1)
-            gwfsat => gwfsat_buffer%rget(step_idx - 1)
+          Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
+          weight = time_scheme%get_weight(step_idx)
+          coeff = Vwater * weight
 
-            Vwater = Vcell * gwfsat(n) * this%thetam(n)
-            weight = time_scheme%get_weight(step_idx)
-            coeff = Vwater * weight
+          rate = rate - coeff * cnew(n)
+        else
+          cold => cold_buffer%rget(step_idx - 1)
+          gwfsat => gwfsat_buffer%rget(step_idx - 1)
 
-            rate = rate - coeff * cold(n)
-          end if
+          Vwater = Vcell * gwfsat(n) * this%thetam(n)
+          weight = time_scheme%get_weight(step_idx)
+          coeff = Vwater * weight
+
+          rate = rate - coeff * cold(n)
+        end if
       end do
 
       this%ratesto(n) = rate

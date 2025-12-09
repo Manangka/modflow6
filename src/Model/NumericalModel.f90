@@ -242,7 +242,9 @@ contains
     ! -- derived types
     call this%bndlist%Clear()
     deallocate (this%bndlist)
-    ! deallocate (this%xold_buffer)
+    if (associated(this%xold_buffer)) then
+      deallocate (this%xold_buffer)
+    end if
     !
     ! -- nullify pointers
     call mem_deallocate(this%x, 'X', this%memoryPath)
