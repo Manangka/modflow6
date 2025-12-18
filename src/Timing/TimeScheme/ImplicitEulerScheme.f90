@@ -30,7 +30,8 @@ contains
     type(ImplicitEulerSchemeType) :: scheme
     ! -- dummy
     ! -- local
-    allocate( scheme%delt_buffer, source=CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS'))
+    allocate (scheme%delt_buffer, source= &
+              CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS'))
 
   end function constructor
 

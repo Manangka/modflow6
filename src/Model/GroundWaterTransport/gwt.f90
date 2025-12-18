@@ -195,8 +195,12 @@ contains
     !
     ! -- Allocate buffers
     num_steps = time_scheme%get_num_steps()
-    allocate( this%gwfsat_buffer, source=CircularBufferType(num_steps, this%neq, 'GWFSATOLD_BUFFER', this%memoryPath))
-    allocate( this%xold_buffer, source=CircularBufferType(num_steps, this%neq, 'XOLD_BUFFER', this%memoryPath))
+    allocate (this%gwfsat_buffer, source= &
+              CircularBufferType(num_steps, this%neq, &
+                                 'GWFSATOLD_BUFFER', this%memoryPath))
+    allocate (this%xold_buffer, source= &
+              CircularBufferType(num_steps, this%neq, &
+                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
     call this%obs%obs_df(this%iout, this%name, 'GWT', this%dis)
@@ -453,7 +457,8 @@ contains
       call this%mvt%mvt_fc(this%x, this%x)
     end if
     if (this%inmst > 0) then
-      call this%mst%mst_fc(this%dis%nodes, this%xold_buffer, this%gwfsat_buffer, this%nja, matrix_sln, &
+      call this%mst%mst_fc(this%dis%nodes, this%xold_buffer, &
+                           this%gwfsat_buffer, this%nja, matrix_sln, &
                            this%idxglo, this%x, this%rhs, kiter)
     end if
     if (this%inadv > 0) then
@@ -527,7 +532,9 @@ contains
     end do
     if (this%inadv > 0) call this%adv%adv_cq(this%x, this%flowja)
     if (this%indsp > 0) call this%dsp%dsp_cq(this%x, this%flowja)
-    if (this%inmst > 0) call this%mst%mst_cq(this%dis%nodes, this%x, this%xold_buffer, this%gwfsat_buffer, &
+    if (this%inmst > 0) call this%mst%mst_cq(this%dis%nodes, this%x, &
+                                             this%xold_buffer, &
+                                             this%gwfsat_buffer, &
                                              this%flowja)
     if (this%inssm > 0) call this%ssm%ssm_cq(this%flowja)
     if (this%infmi > 0) call this%fmi%fmi_cq(this%x, this%flowja)

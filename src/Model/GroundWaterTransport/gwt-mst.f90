@@ -176,8 +176,8 @@ contains
   !!
   !!  Method to calculate and fill coefficients for the package.
   !<
-  subroutine mst_fc(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, cnew, &
-                    rhs, kiter)
+  subroutine mst_fc(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, &
+                    idxglo, cnew, rhs, kiter)
     ! -- modules
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
@@ -195,7 +195,8 @@ contains
     cold => cold_buffer%rget(1)
     !
     ! -- storage contribution
-    call this%mst_fc_sto(nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, rhs)
+    call this%mst_fc_sto(nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, &
+                         idxglo, rhs)
     !
     ! -- decay contribution
     if (this%idcy /= DECAY_OFF) then
@@ -219,7 +220,8 @@ contains
   !!
   !!  Method to calculate and fill storage coefficients for the package.
   !<
-  subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, idxglo, rhs)
+  subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
+                        matrix_sln, idxglo, rhs)
     ! -- modules
     use TdisModule, only: time_scheme
     ! -- dummy
@@ -375,12 +377,14 @@ contains
       sat_old = this%fmi%gwfsatold(n, delt)
 
       ! -- Matrix contribution for sorption term
-      hhcof = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) * Vcell * tled
+      hhcof = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
+              * Vcell * tled
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
 
       ! -- Right-hand side contribution due to linearization
-      rrhs = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled 
+      rrhs = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
+             * cnew(n) * Vcell * tled
       rhs(n) = rhs(n) + rrhs
 
       rrhs = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) * &
@@ -701,19 +705,23 @@ contains
       sat_old = this%fmi%gwfsatold(n, delt)
 
       ! -- Matrix contribution for sorption term
-      contribution = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled
+      contribution = -volfracm * rhobm * sat_new &
+                     * this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled
       rate = rate + contribution
 
       ! -- Right-hand side contribution due to linearization
       ! -- Note: this contrubtion should cancel with the matrix contribution when the outer loop is converged
-      contribution = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled 
+      contribution = -volfracm * rhobm * sat_new * &
+                     this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled
       rate = rate - contribution
 
-      contribution = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) * Vcell * tled
+      contribution = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) &
+                     * Vcell * tled
       rate = rate - contribution
 
       ! -- Right-hand side contribution from previous time step
-      contribution = -volfracm * rhobm * sat_old * this%isotherm%value(cold, n) * Vcell * tled
+      contribution = -volfracm * rhobm * sat_old * this%isotherm%value(cold, n) &
+                     * Vcell * tled
       rate = rate - contribution
 
       this%ratesrb(n) = rate

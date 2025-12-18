@@ -78,7 +78,8 @@ contains
       error stop "Index out of bounds in CircularBufferType%get"
     end if
 
-    index = mod(this%head_index - this%size + n - 1 + this%capacity, this%capacity) + 1
+    index = mod(this%head_index - this%size + n - 1 + this%capacity, &
+                this%capacity) + 1
     element => this%data(:, index)
 
   end function get
