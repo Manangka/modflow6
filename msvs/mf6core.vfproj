@@ -415,6 +415,13 @@
 		<File RelativePath="..\src\Model\ExplicitModel.f90"/>
 		<File RelativePath="..\src\Model\NumericalModel.f90"/>
 		<File RelativePath="..\src\Model\NumericalPackage.f90"/></Filter>
+		<Filter Name="Isotherm">
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\FreundlichIsotherm.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\IsothermEnum.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\IsothermFactory.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\IsothermInterface.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\LangmuirIsotherm.f90"/>
+		<File RelativePath="..\src\Model\TransportModel\Isotherm\LinearIsotherm.f90"/></Filter>
 		<Filter Name="Solution">
 		<Filter Name="LinearMethods">
 		<File RelativePath="..\src\Solution\LinearMethods\ImsLinear.f90"/>
@@ -511,6 +518,11 @@
 			<Tool Name="VFFortranCompilerTool" Preprocess="preprocessYes"/></FileConfiguration></File>
 		<File RelativePath="..\src\Solution\SolutionGroup.f90"/></Filter>
 		<Filter Name="Timing">
+		<Filter Name="TimeScheme">
+		<File RelativePath="..\src\Timing\TimeScheme\BDF2Scheme.f90"/>
+		<File RelativePath="..\src\Timing\TimeScheme\ImplicitEulerScheme.f90"/>
+		<File RelativePath="..\src\Timing\TimeScheme\TimeSchemeEnum.f90"/>
+		<File RelativePath="..\src\Timing\TimeScheme\TimeSchemeInterface.f90"/></Filter>
 		<File RelativePath="..\src\Timing\ats.f90"/>
 		<File RelativePath="..\src\Timing\tdis.f90"/></Filter>
 		<Filter Name="Utilities">
@@ -667,6 +679,7 @@
 		<File RelativePath="..\src\Utilities\BudgetObject.f90"/>
 		<File RelativePath="..\src\Utilities\BudgetTerm.f90"/>
 		<File RelativePath="..\src\Utilities\CharString.f90"/>
+		<File RelativePath="..\src\Utilities\CircularBuffer.f90"/>
 		<File RelativePath="..\src\Utilities\comarg.f90"/>
 		<File RelativePath="..\src\Utilities\compilerversion.F90">
 			<FileConfiguration Name="Debug|Win32">
