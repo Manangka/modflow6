@@ -38,8 +38,12 @@ contains
     real(DP) :: val
     real(DP) :: denom
 
-    denom = 1.0_DP + this%Kl(n) * c(n)
-    val = (this%Sbar(n) * this%Kl(n) * c(n)) / denom
+    if (c(n) > 0.0_DP) then
+      denom = 1.0_DP + this%Kl(n) * c(n)
+      val = (this%Sbar(n) * this%Kl(n) * c(n)) / denom
+    else
+      val = 0.0_DP
+    end if
   end function value
 
   function derivative(this, c, n) result(derv)
@@ -49,8 +53,12 @@ contains
     real(DP) :: derv
     real(DP) :: denom
 
-    denom = (1.0_DP + this%Kl(n) * c(n))**2
-    derv = (this%Sbar(n) * this%Kl(n)) / denom
+    if (c(n) > 0.0_DP) then
+      denom = (1.0_DP + this%Kl(n) * c(n))**2.0_dp
+      derv = (this%Sbar(n) * this%Kl(n)) / denom
+    else
+      derv = 0.0_DP
+    end if
   end function derivative
 
 end module LangmuirIsothermModule
