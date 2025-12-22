@@ -206,7 +206,7 @@ contains
     !
     ! -- sorption contribution
     if (this%isrb /= SORPTION_OFF) then
-      call this%mst_fc_srb(nodes, cold, nja, matrix_sln, idxglo, rhs, cnew)
+      call this%mst_fc_srb(nodes, cold, gwfsat_buffer, nja, matrix_sln, idxglo, rhs, cnew)
     end if
     !
     ! -- decay sorbed contribution
@@ -223,7 +223,7 @@ contains
   subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
                         matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
+    use TdisModule, only: time_scheme, delt
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -241,6 +241,7 @@ contains
     integer(I4B) :: step_idx
     real(DP) :: weight
     real(DP), pointer :: gwfsat(:)
+    real(DP) :: vnew, vold
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
@@ -249,6 +250,13 @@ contains
       if (this%ibound(n) <= 0) cycle
 
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
+
+      ! vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
+      !   this%fmi%gwfsat(n) * this%thetam(n)
+      ! vold = vnew
+      ! if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
+      ! if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
+
       do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
         if (step_idx == 1) then
           gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
@@ -337,7 +345,7 @@ contains
   !!
   !!  Method to calculate and fill sorption coefficients for the package.
   !<
-  subroutine mst_fc_srb(this, nodes, cold, nja, matrix_sln, idxglo, rhs, &
+  subroutine mst_fc_srb(this, nodes, cold, gwfsat_buffer, nja, matrix_sln, idxglo, rhs, &
                         cnew)
     ! -- modules
     use TdisModule, only: delt
@@ -346,6 +354,7 @@ contains
     integer, intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
     integer(I4B), intent(in) :: nja !< number of GWT connections
+        type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
@@ -358,6 +367,14 @@ contains
     real(DP) :: volfracm
     real(DP) :: rhobm
     real(DP) :: sat_new, sat_old
+    real(DP), pointer :: sat_old2(:)
+    real(DP) :: cbar_new, cbar_old, cbar_half
+    real(DP) :: cbar_derv_old, cbar_derv_new, cbar_derv_half
+    real(DP) :: sat_half, cbar_derv_sat_half
+    real(DP) :: const1, const2
+    real(DP) :: swt, swtpdt
+    real(DP) :: hhcof1, rrhs1
+
     !
     ! -- set variables
     tled = DONE / delt
@@ -375,6 +392,7 @@ contains
       volfracm = this%get_volfracm(n)
       sat_new = this%fmi%gwfsat(n)
       sat_old = this%fmi%gwfsatold(n, delt)
+      sat_old2 => gwfsat_buffer%rget(1)
 
       ! -- Matrix contribution for sorption term
       hhcof = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
@@ -395,6 +413,25 @@ contains
       rrhs = -volfracm * rhobm * sat_old * this%isotherm%value(cold, n) * &
              Vcell * tled
       rhs(n) = rhs(n) + rrhs
+
+      ! ! -- Alternative formulation using average values
+      ! cbar_new =this%isotherm%value(cnew, n)
+      ! cbar_old =this%isotherm%value(cold, n)
+      ! cbar_half = 0.5 * (cbar_new + cbar_old)
+
+      ! sat_half = 0.5 * (sat_new + sat_old)
+      ! cbar_derv_half = this%isotherm%derivative(0.5_DP * (cold + cnew), n)
+
+      ! hhcof = -volfracm * rhobm * cbar_derv_half * sat_half * Vcell * tled
+      ! idiag = this%dis%con%ia(n)
+      ! call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
+
+      ! rrhs = -volfracm * rhobm * cbar_derv_half * sat_half * cold(n) * Vcell * tled
+      ! rhs(n) = rhs(n) + rrhs
+
+      ! rrhs = volfracm * rhobm * cbar_half * (sat_new  - sat_old) * Vcell * tled
+      ! rhs(n) = rhs(n) + rrhs
+
     end do
   end subroutine mst_fc_srb
 
