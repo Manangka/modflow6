@@ -207,7 +207,8 @@ contains
     !
     ! -- sorption contribution
     if (this%isrb /= SORPTION_OFF) then
-      call this%mst_fc_srb(nodes, cold, gwfsat_buffer, nja, matrix_sln, idxglo, rhs, cnew)
+      call this%mst_fc_srb(nodes, cold, gwfsat_buffer, nja, matrix_sln, &
+                           idxglo, rhs, cnew)
     end if
     !
     ! -- decay sorbed contribution
@@ -340,8 +341,8 @@ contains
   !!
   !!  Method to calculate and fill sorption coefficients for the package.
   !<
-  subroutine mst_fc_srb(this, nodes, cold, gwfsat_buffer, nja, matrix_sln, idxglo, rhs, &
-                        cnew)
+  subroutine mst_fc_srb(this, nodes, cold, gwfsat_buffer, nja, matrix_sln, &
+                        idxglo, rhs, cnew)
     ! -- modules
     use TdisModule, only: delt
     ! -- dummy
