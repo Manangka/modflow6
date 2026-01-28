@@ -39,6 +39,7 @@ module GwfNpfModule
     type(Xt3dType), pointer :: xt3d => null() !< xt3d pointer
     integer(I4B), pointer :: iname => null() !< length of variable names
     character(len=24), dimension(:), pointer :: aname => null() !< variable names
+    integer(I4B), pointer :: iss => null() !< steady state flag: 1 = steady, 0 = transient
     integer(I4B), dimension(:), pointer, contiguous :: ibound => null() !< pointer to model ibound
     real(DP), dimension(:), pointer, contiguous :: hnew => null() !< pointer to model xnew
     integer(I4B), pointer :: ixt3d => null() !< xt3d flag (0 is off, 1 is lhs, 2 is rhs)
@@ -288,6 +289,7 @@ contains
   subroutine npf_ar(this, ic, vsc, ibound, hnew)
     ! -- modules
     use MemoryManagerModule, only: mem_reallocate
+    use MemoryHelperModule, only: create_mem_path
     ! -- dummy
     class(GwfNpftype) :: this !< instance of the NPF package
     type(GwfIcType), pointer, intent(in) :: ic !< initial conditions
@@ -301,6 +303,9 @@ contains
     this%ic => ic
     this%ibound => ibound
     this%hnew => hnew
+    !
+    ! -- set pointer to gwf iss
+    call mem_setptr(this%iss, 'ISS', create_mem_path(this%name_model))
     !
     if (this%icalcspdis == 1) then
       call mem_reallocate(this%spdis, 3, this%dis%nodes, 'SPDIS', this%memoryPath)
@@ -826,6 +831,13 @@ contains
         end do
       end do
       !
+    end if
+
+    ! -- for steady state, sat_old = sat
+    if (this%iss == 1) then
+      do n = 1, this%dis%nodes
+        this%sat_old(n) = this%sat(n)
+      end do
     end if
   end subroutine npf_cq
 

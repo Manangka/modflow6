@@ -252,12 +252,6 @@ contains
 
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
 
-      ! vnew = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n)) * &
-      !   this%fmi%gwfsat(n) * this%thetam(n)
-      ! vold = vnew
-      ! if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      ! if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
-
       do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
         if (step_idx == 1) then
           gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
@@ -355,7 +349,7 @@ contains
     integer, intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
     integer(I4B), intent(in) :: nja !< number of GWT connections
-        type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
