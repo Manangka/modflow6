@@ -225,7 +225,7 @@ contains
   subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
                         matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme, delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -243,7 +243,6 @@ contains
     integer(I4B) :: step_idx
     real(DP) :: weight
     real(DP), pointer :: gwfsat(:)
-    real(DP) :: vnew, vold
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
