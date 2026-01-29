@@ -13,6 +13,7 @@ module ImplicitEulerSchemeModule
     class(CircularBufferType), pointer :: delt_buffer => null()
     integer(I4B) :: num_steps = 1 !< number of sub-steps in the time step
   contains
+    procedure :: pop_delt
     procedure :: update_delt
     procedure :: get_num_steps
     procedure :: get_time_iteration_steps
@@ -41,6 +42,12 @@ contains
     deallocate (this%delt_buffer)
 
   end subroutine destructor
+
+  subroutine pop_delt(this)
+    class(ImplicitEulerSchemeType), intent(inout) :: this
+
+    call this%delt_buffer%pop()
+  end subroutine pop_delt
 
   subroutine update_delt(this, new_delt)
     class(ImplicitEulerSchemeType), intent(inout) :: this

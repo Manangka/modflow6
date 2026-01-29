@@ -8,12 +8,20 @@ module TimeSchemeInterfaceModule
 
   type, abstract :: TimeSchemeInterface
   contains
+    procedure(pop_delt), deferred :: pop_delt
     procedure(update_delt), deferred :: update_delt
     procedure(get_num_steps), deferred :: get_num_steps
     procedure(get_time_iteration_steps), deferred :: get_time_iteration_steps
     procedure(get_weight), deferred :: get_weight
 
   end type TimeSchemeInterface
+
+  abstract interface
+    subroutine pop_delt(this)
+      import :: TimeSchemeInterface
+      class(TimeSchemeInterface), intent(inout) :: this
+    end subroutine pop_delt
+  end interface
 
   abstract interface
     subroutine update_delt(this, new_delt)

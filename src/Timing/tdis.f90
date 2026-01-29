@@ -243,6 +243,9 @@ contains
     delt = deltnew
     totim = totimsav + delt
     pertim = pertimsav + delt
+    ! -- Replace delt in time scheme
+    call time_scheme%pop_delt()
+    call time_scheme%update_delt(delt)
     !
     ! -- Set end of period indicator
     endofperiod = .false.

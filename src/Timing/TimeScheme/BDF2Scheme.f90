@@ -15,6 +15,7 @@ module BDF2SchemeModule
     integer(I4B), pointer :: kper => null()
     integer(I4B) :: num_steps = 2 !< number of sub-steps in the time step
   contains
+    procedure :: pop_delt
     procedure :: update_delt
     procedure :: get_num_steps
     procedure :: get_time_iteration_steps
@@ -47,6 +48,12 @@ contains
     deallocate (this%delt_buffer)
 
   end subroutine destructor
+
+  subroutine pop_delt(this)
+    class(BDF2SchemeType), intent(inout) :: this
+
+    call this%delt_buffer%pop()
+  end subroutine pop_delt
 
   subroutine update_delt(this, new_delt)
     class(BDF2SchemeType), intent(inout) :: this

@@ -15,6 +15,7 @@ module CircularBufferModule
 
   contains
     procedure :: add
+    procedure :: pop
     procedure :: get
     procedure :: rget
     ! procedure :: is_full
@@ -64,6 +65,19 @@ contains
     this%head_index = insert_index
 
   end subroutine add
+
+  subroutine pop(this)
+    ! -- dummy
+    class(CircularBufferType), target :: this
+
+    if (this%size == 0) then
+      error stop "Cannot pop from an empty CircularBufferType"
+    end if
+
+    this%size = this%size - 1
+    this%head_index = mod(this%head_index - 2, this%capacity) + 1
+
+  end subroutine pop
 
   function get(this, n) result(element)
     ! -- dummy

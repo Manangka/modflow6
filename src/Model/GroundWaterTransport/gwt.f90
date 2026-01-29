@@ -196,7 +196,7 @@ contains
     ! -- Allocate buffers
     num_steps = time_scheme%get_num_steps()
     allocate (this%gwfsat_buffer, source= &
-              CircularBufferType(num_steps, this%neq, &
+              CircularBufferType(num_steps, this%dis%nodes, &
                                  'GWFSATOLD_BUFFER', this%memoryPath))
     allocate (this%xold_buffer, source= &
               CircularBufferType(num_steps, this%neq, &
@@ -398,7 +398,9 @@ contains
     !
     ! -- Advance fmi
     call this%fmi%fmi_ad(this%x)
-    call this%gwfsat_buffer%add(this%fmi%gwfsat_old)
+    if (irestore == 0) then
+      call this%gwfsat_buffer%add(this%fmi%gwfsat_old)
+    end if
     !
     ! -- Advance
     if (this%indsp > 0) call this%dsp%dsp_ad()
