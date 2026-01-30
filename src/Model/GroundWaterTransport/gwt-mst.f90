@@ -23,7 +23,6 @@ module GwtMstModule
   use IsothermInterfaceModule, only: IsothermType
   use IsothermFactoryModule, only: create_isotherm
   use IsothermEnumModule
-  use IsothermEnumModule
 
   implicit none
   public :: GwtMstType
