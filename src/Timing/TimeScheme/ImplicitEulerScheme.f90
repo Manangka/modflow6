@@ -10,7 +10,7 @@ module ImplicitEulerSchemeModule
 
   type, extends(TimeSchemeInterface) :: ImplicitEulerSchemeType
     private
-    class(CircularBufferType), pointer :: delt_buffer => null()
+    type(CircularBufferType), allocatable :: delt_buffer
     integer(I4B) :: num_steps = 1 !< number of sub-steps in the time step
   contains
     procedure :: pop_delt
@@ -18,7 +18,6 @@ module ImplicitEulerSchemeModule
     procedure :: get_num_steps
     procedure :: get_time_iteration_steps
     procedure :: get_weight
-    final :: destructor
   end type ImplicitEulerSchemeType
 
   interface ImplicitEulerSchemeType
@@ -31,17 +30,10 @@ contains
     type(ImplicitEulerSchemeType) :: scheme
     ! -- dummy
     ! -- local
-    allocate (scheme%delt_buffer, source= &
-              CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS'))
+    scheme%delt_buffer = &
+      CircularBufferType(scheme%num_steps, 1, 'DELT_BUFFER', 'TDIS')
 
   end function constructor
-
-  subroutine destructor(this)
-    ! -- dummy
-    type(ImplicitEulerSchemeType), intent(inout) :: this
-    deallocate (this%delt_buffer)
-
-  end subroutine destructor
 
   subroutine pop_delt(this)
     class(ImplicitEulerSchemeType), intent(inout) :: this

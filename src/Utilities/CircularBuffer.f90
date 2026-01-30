@@ -8,9 +8,9 @@ module CircularBufferModule
   public :: CircularBufferType
 
   type :: CircularBufferType
-    integer :: capacity !< Maximum number of elements in the buffer
-    integer :: size = 0 !< Current number of elements in the buffer
-    integer :: head_index = 0 !< Index of the head element
+    integer(I4B) :: capacity !< Maximum number of elements in the buffer
+    integer(I4B) :: size = 0 !< Current number of elements in the buffer
+    integer(I4B) :: head_index = 0 !< Index of the head element
     real(DP), pointer, contiguous :: data(:, :) !< The buffer array
 
   contains
@@ -36,7 +36,6 @@ contains
     character(len=*), intent(in) :: name !< variable name
     character(len=*), intent(in) :: mem_path !< path where variable is stored
     ! -- local
-
     call mem_allocate(buffer%data, neq, capacity, name, mem_path)
     buffer%capacity = capacity
 
@@ -54,7 +53,7 @@ contains
     class(CircularBufferType), target :: this
     real(DP), dimension(:), intent(in) :: element
     ! -- local
-    integer :: insert_index
+    integer(I4B) :: insert_index
 
     if (this%size < this%capacity) then
       this%size = this%size + 1
@@ -86,7 +85,7 @@ contains
     ! -- return
     real(DP), pointer, dimension(:) :: element
     ! -- local
-    integer :: index
+    integer(I4B) :: index
 
     if (n < 1 .or. n > this%size) then
       error stop "Index out of bounds in CircularBufferType%get"
@@ -105,7 +104,7 @@ contains
     ! -- return
     real(DP), pointer, dimension(:) :: element
     ! -- local
-    integer :: index
+    integer(I4B) :: index
     if (n < 1 .or. n > this%size) then
       error stop "Index out of bounds in CircularBufferType%rget"
     end if
