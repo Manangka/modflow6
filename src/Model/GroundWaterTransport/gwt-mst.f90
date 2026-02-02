@@ -206,7 +206,7 @@ contains
     !
     ! -- sorption contribution
     if (this%isrb /= SORPTION_OFF) then
-      call this%mst_fc_srb(nodes, cold, gwfsat_buffer, nja, matrix_sln, &
+      call this%mst_fc_srb(nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, &
                            idxglo, rhs, cnew)
     end if
     !
@@ -251,26 +251,26 @@ contains
 
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
 
-      do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
-        if (step_idx == 1) then
-          gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
+      ! -- Matrix contribution for storage term
+      gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
 
-          Vwater = Vcell * gwfsat(n) * this%thetam(n)
-          weight = time_scheme%get_weight(step_idx)
-          coeff = Vwater * weight
+      Vwater = Vcell * gwfsat(n) * this%thetam(n)
+      weight = time_scheme%get_weight(1)
+      coeff = Vwater * weight
 
-          idiag = this%dis%con%ia(n)
-          call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
-        else
-          cold => cold_buffer%rget(step_idx - 1)
-          gwfsat => gwfsat_buffer%rget(step_idx - 1)
+      idiag = this%dis%con%ia(n)
+      call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
 
-          Vwater = Vcell * gwfsat(n) * this%thetam(n)
-          weight = time_scheme%get_weight(step_idx)
-          coeff = Vwater * weight
+      ! -- Right-hand side contribution from previous time steps
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        gwfsat => gwfsat_buffer%rget(step_idx)
 
-          rhs(n) = rhs(n) + coeff * cold(n)
-        end if
+        Vwater = Vcell * gwfsat(n) * this%thetam(n)
+        weight = time_scheme%get_weight(step_idx + 1)
+        coeff = Vwater * weight
+
+        rhs(n) = rhs(n) + coeff * cold(n)
       end do
     end do
   end subroutine mst_fc_sto
@@ -339,14 +339,14 @@ contains
   !!
   !!  Method to calculate and fill sorption coefficients for the package.
   !<
-  subroutine mst_fc_srb(this, nodes, cold, gwfsat_buffer, nja, matrix_sln, &
-                        idxglo, rhs, cnew)
+  subroutine mst_fc_srb(this, nodes, cold_buffer, gwfsat_buffer, nja, &
+                        matrix_sln, idxglo, rhs, cnew)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
     integer(I4B), intent(in) :: nja !< number of GWT connections
     type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
@@ -355,15 +355,15 @@ contains
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
     ! -- local
     integer(I4B) :: n, idiag
-    real(DP) :: tled
     real(DP) :: hhcof, rrhs
     real(DP) :: vcell
     real(DP) :: volfracm
     real(DP) :: rhobm
-    real(DP) :: sat_new, sat_old
-    !
-    ! -- set variables
-    tled = DONE / delt
+    real(DP) :: sat_new
+    real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
+    real(DP) :: weight
+    real(DP), pointer :: sat_old(:)
     !
     ! -- loop through and calculate sorption contribution to hcof and rhs
     do n = 1, this%dis%nodes
@@ -375,28 +375,35 @@ contains
       vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
       volfracm = this%get_volfracm(n)
       rhobm = this%bulk_density(n)
-      sat_new = this%fmi%gwfsat(n)
-      sat_old = this%fmi%gwfsatold(n, delt)
 
+      sat_new = this%fmi%gwfsat(n)
+      weight = time_scheme%get_weight(1)
+      !
       ! -- Matrix contribution for sorption term
       hhcof = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
-              * Vcell * tled
+              * vcell * weight
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
-
+      !
       ! -- Right-hand side contribution due to linearization
       rrhs = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
-             * cnew(n) * Vcell * tled
+             * cnew(n) * vcell * weight
       rhs(n) = rhs(n) + rrhs
 
       rrhs = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) * &
-             Vcell * tled
+             vcell * weight
       rhs(n) = rhs(n) + rrhs
-
+      !
       ! -- Right-hand side contribution from previous time step
-      rrhs = -volfracm * rhobm * sat_old * this%isotherm%value(cold, n) * &
-             Vcell * tled
-      rhs(n) = rhs(n) + rrhs
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        sat_old => gwfsat_buffer%rget(step_idx)
+        weight = time_scheme%get_weight(step_idx + 1)
+
+        rrhs = volfracm * rhobm * sat_old(n) * this%isotherm%value(cold, n) * &
+               vcell * weight
+        rhs(n) = rhs(n) + rrhs
+      end do
 
     end do
   end subroutine mst_fc_srb
@@ -521,7 +528,7 @@ contains
     !
     ! -- sorption
     if (this%isrb /= SORPTION_OFF) then
-      call this%mst_cq_srb(nodes, cnew, cold, flowja)
+      call this%mst_cq_srb(nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     end if
     !
     ! -- decay sorbed
@@ -569,25 +576,26 @@ contains
       if (this%ibound(n) <= 0) cycle
 
       Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
-      do step_idx = 1, time_scheme%get_time_iteration_steps() + 1
-        if (step_idx == 1) then
-          gwfsat => this%fmi%gwfsat
+      !
+      ! -- Matrix contribution for storage term
+      gwfsat => this%fmi%gwfsat
 
-          Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
-          weight = time_scheme%get_weight(step_idx)
-          coeff = Vwater * weight
+      Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
+      weight = time_scheme%get_weight(1)
+      coeff = Vwater * weight
 
-          rate = rate - coeff * cnew(n)
-        else
-          cold => cold_buffer%rget(step_idx - 1)
-          gwfsat => gwfsat_buffer%rget(step_idx - 1)
+      rate = rate - coeff * cnew(n)
+      !
+      ! -- Right-hand side contribution from previous time steps
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        gwfsat => gwfsat_buffer%rget(step_idx)
 
-          Vwater = Vcell * gwfsat(n) * this%thetam(n)
-          weight = time_scheme%get_weight(step_idx)
-          coeff = Vwater * weight
+        Vwater = Vcell * gwfsat(n) * this%thetam(n)
+        weight = time_scheme%get_weight(step_idx + 1)
+        coeff = Vwater * weight
 
-          rate = rate - coeff * cold(n)
-        end if
+        rate = rate - coeff * cold(n)
       end do
 
       this%ratesto(n) = rate
@@ -657,28 +665,29 @@ contains
   !!
   !!  Method to calculate sorption terms for the package.
   !<
-  subroutine mst_cq_srb(this, nodes, cnew, cold, flowja)
+  subroutine mst_cq_srb(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
-    real(DP), intent(in), dimension(nodes) :: cold !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at previous time steps
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     ! -- local
     integer(I4B) :: n
     integer(I4B) :: idiag
     real(DP) :: rate
-    real(DP) :: tled
     real(DP) :: vcell
     real(DP) :: volfracm
     real(DP) :: rhobm
-    real(DP) :: sat_new, sat_old
+    real(DP) :: sat_new
     real(DP) :: contribution
-    !
-    ! -- initialize
-    tled = DONE / delt
+    real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
+    real(DP) :: weight
+    real(DP), pointer :: sat_old(:)
     !
     ! -- Calculate sorption change
     do n = 1, nodes
@@ -691,32 +700,39 @@ contains
       if (this%ibound(n) <= 0) cycle
       !
       ! -- assign variables
-      Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
+      vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
 
       rhobm = this%bulk_density(n)
       volfracm = this%get_volfracm(n)
+
       sat_new = this%fmi%gwfsat(n)
-      sat_old = this%fmi%gwfsatold(n, delt)
-
+      weight = time_scheme%get_weight(1)
+      !
       ! -- Matrix contribution for sorption term
-      contribution = -volfracm * rhobm * sat_new &
-                     * this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled
+      contribution = -volfracm * rhobm * sat_new * &
+                     this%isotherm%derivative(cnew, n) * cnew(n) * vcell * weight
       rate = rate + contribution
-
+      !
       ! -- Right-hand side contribution due to linearization
       ! -- Note: this contrubtion should cancel with the matrix contribution when the outer loop is converged
       contribution = -volfracm * rhobm * sat_new * &
-                     this%isotherm%derivative(cnew, n) * cnew(n) * Vcell * tled
+                     this%isotherm%derivative(cnew, n) * cnew(n) * vcell * weight
       rate = rate - contribution
 
       contribution = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) &
-                     * Vcell * tled
+                     * vcell * weight
       rate = rate - contribution
-
+      !
       ! -- Right-hand side contribution from previous time step
-      contribution = -volfracm * rhobm * sat_old * this%isotherm%value(cold, n) &
-                     * Vcell * tled
-      rate = rate - contribution
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        sat_old => gwfsat_buffer%rget(step_idx)
+        weight = time_scheme%get_weight(step_idx + 1)
+
+        contribution = -volfracm * rhobm * sat_old(n) * &
+                       this%isotherm%value(cold, n) * Vcell * weight
+        rate = rate - contribution
+      end do
 
       this%ratesrb(n) = rate
       idiag = this%dis%con%ia(n)

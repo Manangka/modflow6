@@ -21,6 +21,7 @@ module GweEstModule
   use NumericalPackageModule, only: NumericalPackageType
   use BaseDisModule, only: DisBaseType
   use TspFmiModule, only: TspFmiType
+  use CircularBufferModule, only: CircularBufferType
   use GweInputDataModule, only: GweInputDataType
 
   implicit none
@@ -170,21 +171,28 @@ contains
   !!
   !!  Method to calculate and fill coefficients for the package.
   !<
-  subroutine est_fc(this, nodes, cold, nja, matrix_sln, idxglo, cnew, &
-                    rhs, kiter)
+  subroutine est_fc(this, nodes, cold_buffer, gwfsat_buffer, nja, matrix_sln, &
+                    idxglo, cnew, rhs, kiter)
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer, intent(in) :: nodes !< number of nodes
-    real(DP), intent(in), dimension(nodes) :: cold !< temperature at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< temperature at end of second last time step
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     integer(I4B), intent(in) :: nja !< number of GWE connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
     real(DP), intent(in), dimension(nodes) :: cnew !< temperature at end of this time step
     integer(I4B), intent(in) :: kiter !< solution outer iteration number
+    ! -- local
+    real(DP), pointer :: cold(:)
+
+    cold => cold_buffer%rget(1)
+
     !
     ! -- storage contribution
-    call this%est_fc_sto(nodes, cold, nja, matrix_sln, idxglo, rhs)
+    call this%est_fc_sto(nodes, cold_buffer, gwfsat_buffer, nja, &
+                         matrix_sln, idxglo, rhs)
     !
     ! -- decay contribution
     if (this%idcy == DECAY_ZERO_ORDER) then
@@ -199,25 +207,26 @@ contains
   !!
   !!  Method to calculate and fill storage coefficients for the package.
   !<
-  subroutine est_fc_sto(this, nodes, cold, nja, matrix_sln, idxglo, rhs)
+  subroutine est_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
+                        matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer, intent(in) :: nodes !< number of nodes
-    real(DP), intent(in), dimension(nodes) :: cold !< temperature at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< groundwater saturation buffer
     integer(I4B), intent(in) :: nja !< number of GWE connections
     class(MatrixBaseType), pointer :: matrix_sln !< solution coefficient matrix
     integer(I4B), intent(in), dimension(nja) :: idxglo !< mapping vector for model (local) to solution (global)
     real(DP), intent(inout), dimension(nodes) :: rhs !< right-hand side vector for model
     ! -- local
     integer(I4B) :: n, idiag
-    real(DP) :: tled
-    real(DP) :: hhcof, rrhs
-    real(DP) :: vnew, vold, vcell, vsolid, term
-    !
-    ! -- set variables
-    tled = DONE / delt
+    real(DP) :: coeff
+    real(DP) :: vwater, vcell, vsolid, term
+    real(DP), pointer :: cold(:)
+    real(DP) :: weight
+    real(DP), pointer :: gwfsat(:)
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
@@ -227,19 +236,29 @@ contains
       !
       ! -- calculate new and old water volumes and solid volume
       vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
-      vnew = vcell * this%fmi%gwfsat(n) * this%porosity(n)
-      vold = vnew
-      if (this%fmi%igwfstrgss /= 0) vold = vold + this%fmi%gwfstrgss(n) * delt
-      if (this%fmi%igwfstrgsy /= 0) vold = vold + this%fmi%gwfstrgsy(n) * delt
       vsolid = vcell * (DONE - this%porosity(n))
-      !
-      ! -- add terms to diagonal and rhs accumulators
       term = (this%rhos(n) * this%cps(n)) * vsolid
-      hhcof = -(this%eqnsclfac * vnew + term) * tled
-      rrhs = -(this%eqnsclfac * vold + term) * tled * cold(n)
+      !
+      ! -- Matrix contribution for storage term
+      gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
+
+      vwater = vcell * gwfsat(n) * this%porosity(n)
+      weight = time_scheme%get_weight(1)
+      coeff = (this%eqnsclfac * vwater + term) * weight
+
       idiag = this%dis%con%ia(n)
-      call matrix_sln%add_value_pos(idxglo(idiag), hhcof)
-      rhs(n) = rhs(n) + rrhs
+      call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
+      !
+      ! -- Right-hand side contribution from previous time steps
+      cold => cold_buffer%rget(1)
+      gwfsat => gwfsat_buffer%rget(1)
+
+      vwater = vcell * gwfsat(n) * this%porosity(n)
+      weight = time_scheme%get_weight(1 + 1)
+      coeff = (this%eqnsclfac * vwater + term) * weight
+
+      rhs(n) = rhs(n) + coeff * cold(n)
+
     end do
   end subroutine est_fc_sto
 
@@ -344,17 +363,20 @@ contains
   !!
   !!  Method to calculate flows for the package.
   !<
-  subroutine est_cq(this, nodes, cnew, cold, flowja)
+  subroutine est_cq(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< temperature at end of this time step
-    real(DP), intent(in), dimension(nodes) :: cold !< temperature at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at end of last time step
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at end of last time step
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     ! -- local
+    real(DP), pointer, dimension(:) :: cold !< concentration at end of last time step
+    cold => cold_buffer%rget(1)
     !
     ! - storage
-    call this%est_cq_sto(nodes, cnew, cold, flowja)
+    call this%est_cq_sto(nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     !
     ! -- decay
     if (this%idcy == DECAY_ZERO_ORDER) then
@@ -371,25 +393,25 @@ contains
   !!
   !!  Method to calculate storage terms for the package.
   !<
-  subroutine est_cq_sto(this, nodes, cnew, cold, flowja)
+  subroutine est_cq_sto(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
     real(DP), intent(in), dimension(nodes) :: cnew !< temperature at end of this time step
-    real(DP), intent(in), dimension(nodes) :: cold !< temperature at end of last time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at previous time steps
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
     ! -- local
     integer(I4B) :: n
     integer(I4B) :: idiag
     real(DP) :: rate
-    real(DP) :: tled
-    real(DP) :: vwatnew, vwatold, vcell, vsolid, term
-    real(DP) :: hhcof, rrhs
-    !
-    ! -- initialize
-    tled = DONE / delt
+    real(DP) :: coeff
+    real(DP) :: vwater, vcell, vsolid, term
+    real(DP), pointer :: cold(:)
+    real(DP) :: weight
+    real(DP), pointer :: gwfsat(:)
     !
     ! -- Calculate storage change
     do n = 1, nodes
@@ -400,19 +422,28 @@ contains
       !
       ! -- calculate new and old water volumes and solid volume
       vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
-      vwatnew = vcell * this%fmi%gwfsat(n) * this%porosity(n)
-      vwatold = vwatnew
-      if (this%fmi%igwfstrgss /= 0) vwatold = vwatold + this%fmi%gwfstrgss(n) &
-                                              * delt
-      if (this%fmi%igwfstrgsy /= 0) vwatold = vwatold + this%fmi%gwfstrgsy(n) &
-                                              * delt
       vsolid = vcell * (DONE - this%porosity(n))
-      !
-      ! -- calculate rate
       term = (this%rhos(n) * this%cps(n)) * vsolid
-      hhcof = -(this%eqnsclfac * vwatnew + term) * tled
-      rrhs = -(this%eqnsclfac * vwatold + term) * tled * cold(n)
-      rate = hhcof * cnew(n) - rrhs
+      !
+      ! -- Matrix contribution for storage term
+      gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
+
+      vwater = vcell * gwfsat(n) * this%porosity(n)
+      weight = time_scheme%get_weight(1)
+      coeff = (this%eqnsclfac * vwater + term) * weight
+
+      rate = rate - coeff * cnew(n)
+      !
+      ! -- Right-hand side contribution from previous time steps
+      cold => cold_buffer%rget(1)
+      gwfsat => gwfsat_buffer%rget(1)
+
+      vwater = vcell * gwfsat(n) * this%porosity(n)
+      weight = time_scheme%get_weight(1 + 1)
+      coeff = (this%eqnsclfac * vwater + term) * weight
+
+      rate = rate - coeff * cold(n)
+
       this%ratesto(n) = rate
       idiag = this%dis%con%ia(n)
       flowja(idiag) = flowja(idiag) + rate
