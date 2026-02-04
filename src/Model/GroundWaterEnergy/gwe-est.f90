@@ -225,6 +225,7 @@ contains
     real(DP) :: coeff
     real(DP) :: vwater, vcell, vsolid, term
     real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
     real(DP) :: weight
     real(DP), pointer :: gwfsat(:)
     !
@@ -250,14 +251,16 @@ contains
       call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
       !
       ! -- Right-hand side contribution from previous time steps
-      cold => cold_buffer%rget(1)
-      gwfsat => gwfsat_buffer%rget(1)
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        gwfsat => gwfsat_buffer%rget(step_idx)
 
-      vwater = vcell * gwfsat(n) * this%porosity(n)
-      weight = time_scheme%get_weight(1 + 1)
-      coeff = (this%eqnsclfac * vwater + term) * weight
+        vwater = vcell * gwfsat(n) * this%porosity(n)
+        weight = time_scheme%get_weight(step_idx + 1)
+        coeff = (this%eqnsclfac * vwater + term) * weight
 
-      rhs(n) = rhs(n) + coeff * cold(n)
+        rhs(n) = rhs(n) + coeff * cold(n)
+      end do
 
     end do
   end subroutine est_fc_sto
@@ -410,6 +413,7 @@ contains
     real(DP) :: coeff
     real(DP) :: vwater, vcell, vsolid, term
     real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
     real(DP) :: weight
     real(DP), pointer :: gwfsat(:)
     !
@@ -435,14 +439,16 @@ contains
       rate = rate - coeff * cnew(n)
       !
       ! -- Right-hand side contribution from previous time steps
-      cold => cold_buffer%rget(1)
-      gwfsat => gwfsat_buffer%rget(1)
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        gwfsat => gwfsat_buffer%rget(step_idx)
 
-      vwater = vcell * gwfsat(n) * this%porosity(n)
-      weight = time_scheme%get_weight(1 + 1)
-      coeff = (this%eqnsclfac * vwater + term) * weight
+        vwater = vcell * gwfsat(n) * this%porosity(n)
+        weight = time_scheme%get_weight(step_idx + 1)
+        coeff = (this%eqnsclfac * vwater + term) * weight
 
-      rate = rate - coeff * cold(n)
+        rate = rate - coeff * cold(n)
+      end do
 
       this%ratesto(n) = rate
       idiag = this%dis%con%ia(n)
