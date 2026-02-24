@@ -26,7 +26,7 @@ def build_models(idx, test):
     cellid1 = (0, 0, 0)
 
     nouter, ninner = 1000, 100
-    hclose, rclose, relax = 1e-9, 1e-12, 0.0
+    hclose, rclose, relax = 1e-9, 1e-9, 0.0
 
     tdis_rc = []
     for i in range(nper):

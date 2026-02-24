@@ -223,6 +223,28 @@ contains
     end if
   end function sLinearSaturation
 
+  function sLinearSaturationDerivative(top, bot, x, eps) result(y)
+    ! -- return
+    real(DP) :: y
+    ! -- dummy variables
+    real(DP), intent(in) :: top
+    real(DP), intent(in) :: bot
+    real(DP), intent(in) :: x
+    real(DP), optional, intent(in) :: eps
+    ! -- local
+    real(DP) :: b
+
+    b = top - bot
+    if (x < bot) then
+      y = DZERO
+    else if (x > top) then
+      y = DZERO
+    else
+      y = DONE / b
+    end if
+
+  end function sLinearSaturationDerivative
+
   !> @ brief sCubicSaturation
   !!
   !! Nonlinear cubic saturation function returns value between 0-1
