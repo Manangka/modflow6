@@ -23,6 +23,7 @@ module GwfModule
   use GwfObsModule, only: GwfObsType, gwf_obs_cr
   use MatrixBaseModule
   use VectorBaseModule
+  use CircularBufferModule, only: CircularBufferType
 
   implicit none
 
@@ -61,7 +62,6 @@ module GwfModule
     integer(I4B), pointer :: inobs => null() ! unit number OBS
     integer(I4B), pointer :: iss => null() ! steady state flag
     integer(I4B), pointer :: inewtonur => null() ! newton under relaxation flag
-
   contains
 
     procedure :: model_df => gwf_df
@@ -215,11 +215,13 @@ contains
   !<
   subroutine gwf_df(this)
     ! -- modules
+    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwfModelType) :: this
     ! -- local
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
+    integer(I4B) :: num_steps
     !
     ! -- Define packages and utility objects
     call this%dis%dis_df()
@@ -245,6 +247,12 @@ contains
       packobj => GetBndFromList(this%bndlist, ip)
       call packobj%bnd_df(this%neq, this%dis)
     end do
+    !
+    ! -- Allocate buffers
+    num_steps = time_scheme%get_num_steps()
+    allocate (this%xold_buffer, source= &
+              CircularBufferType(num_steps, this%neq, &
+                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
     call this%obs%obs_df(this%iout, this%name, 'GWF', this%dis)
@@ -412,6 +420,7 @@ contains
       do n = 1, this%dis%nodes
         this%xold(n) = this%x(n)
       end do
+      call this%xold_buffer%add(this%x)
     else
       !
       ! -- copy xold into x if this time step is a redo
@@ -496,7 +505,7 @@ contains
     if (this%ingnc > 0) call this%gnc%gnc_fc(kiter, matrix_sln)
     ! -- storage
     if (this%insto > 0) then
-      call this%sto%sto_fc(kiter, this%xold, this%x, matrix_sln, &
+      call this%sto%sto_fc(kiter, this%xold_buffer, this%x, matrix_sln, &
                            this%idxglo, this%rhs)
     end if
     ! -- skeletal storage, compaction, and land subsidence
@@ -761,7 +770,8 @@ contains
     if (this%inbuy > 0) call this%buy%buy_cq(this%x, this%flowja)
     if (this%inhfb > 0) call this%hfb%hfb_cq(this%x, this%flowja)
     if (this%ingnc > 0) call this%gnc%gnc_cq(this%flowja)
-    if (this%insto > 0) call this%sto%sto_cq(this%flowja, this%x, this%xold)
+    if (this%insto > 0) call this%sto%sto_cq(this%flowja, this%x, &
+                                             this%xold_buffer)
     if (this%incsub > 0) call this%csub%csub_cq(this%dis%nodes, this%x, &
                                                 this%xold, isuppress_output, &
                                                 this%flowja)
