@@ -241,7 +241,7 @@ contains
     integer(I4B), intent(in), dimension(:) :: idxglo !< global index model to solution
     real(DP), intent(inout), dimension(:) :: rhs !< right-hand side
     ! -- local variables
-    real(DP), pointer :: hold(:) !< previous heads
+
     ! -- formats
     character(len=*), parameter :: fmtsperror = &
       &"('DETECTED TIME STEP LENGTH OF ZERO.  GWF STORAGE PACKAGE CANNOT BE ', &
@@ -255,44 +255,40 @@ contains
       write (errmsg, fmtsperror)
       call store_error(errmsg, terminate=.TRUE.)
     end if
-
-    hold => hold_buffer%rget(1)
     !
     ! -- specific storage contribution
-    call this%sto_fc_ss(hold, hnew, matrix_sln, idxglo, rhs)
+    call this%sto_fc_ss(hold_buffer, hnew, matrix_sln, idxglo, rhs)
     !
     ! -- specific yield contributions
     call this%sto_fc_sy(hold_buffer, hnew, matrix_sln, idxglo, rhs)
 
   end subroutine sto_fc
 
-  subroutine sto_fc_ss(this, hold, hnew, matrix_sln, idxglo, rhs)
+  subroutine sto_fc_ss(this, hold_buffer, hnew, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
-    real(DP), intent(in), dimension(:) :: hold !< previous heads
-    real(DP), intent(in), dimension(:) :: hnew !< current heads
+    type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
+    real(DP), intent(in), dimension(:), target :: hnew !< current heads
     class(MatrixBaseType), pointer :: matrix_sln !< A matrix
     integer(I4B), intent(in), dimension(:) :: idxglo !< global index model to solution
     real(DP), intent(inout), dimension(:) :: rhs !< right-hand side
     ! -- local variables
     integer(I4B) :: n
     integer(I4B) :: idiag
-    real(DP) :: tled
     real(DP) :: tp
     real(DP) :: bt
     real(DP) :: coef
-    real(DP) :: H
+    real(DP) :: thick
     real(DP) :: saturation
     real(DP) :: satderivative
     real(DP) :: rrhs
     real(DP) :: z
     real(DP) :: stor_coef
-
-    !
-    ! -- set variables
-    tled = DONE / delt
+    real(DP) :: weight
+    integer(I4B) :: step_idx
+    real(DP), dimension(:), pointer :: h !< previous heads
     !
     ! -- loop through and calculate storage contribution to hcof and rhs
     do n = 1, this%dis%nodes
@@ -302,26 +298,29 @@ contains
       ! -- aquifer elevations and thickness
       tp = this%dis%top(n)
       bt = this%dis%bot(n)
-      H = tp - bt
+      thick = tp - bt
       !
       ! -- aquifer saturation
+      h => hnew
+      weight = time_scheme%get_weight(1)
+
       if (this%istor_coef == 0) then
-        stor_coef = this%ss(n) * H
+        stor_coef = this%ss(n) * thick
       else
         stor_coef = this%ss(n)
       end if
 
       if (this%iconvert(n) /= 0) then
-        saturation = sQuadraticSaturation(tp, bt, hnew(n), this%satomega)
+        saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
         satderivative = &
-          sQuadraticSaturationDerivative(tp, bt, hnew(n), this%satomega)
+          sQuadraticSaturationDerivative(tp, bt, h(n), this%satomega)
       else
         saturation = DONE
         satderivative = DZERO
       end if
 
       if (this%iorig_ss == 0) then
-        z = bt + DHALF * H * saturation
+        z = bt + DHALF * thick * saturation
       else
         z = DZERO
       end if
@@ -340,51 +339,58 @@ contains
       !
       ! -- Matrix contribution for storage term
       coef = -stor_coef * this%dis%area(n) * &
-             ((hnew(n) - z) * satderivative + saturation) * tled
+             ((h(n) - z) * satderivative + saturation) * weight
 
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), coef)
       !
       ! -- Right-hand side contribution due to linearization
-      rrhs = stor_coef * this%dis%area(n) * saturation * (hnew(n) - z) * tled
+      rrhs = stor_coef * this%dis%area(n) * saturation * (h(n) - z) * weight
       rhs(n) = rhs(n) + rrhs
 
       rrhs = -stor_coef * this%dis%area(n) * &
-             ((hnew(n) - z) * satderivative + saturation) * hnew(n) * tled
+             ((h(n) - z) * satderivative + saturation) * h(n) * weight
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step
-      if (this%iconvert(n) /= 0) then
-        saturation = sQuadraticSaturation(tp, bt, hold(n), this%satomega)
-      else
-        saturation = DONE
-      end if
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        h => hold_buffer%rget(step_idx)
+        weight = time_scheme%get_weight(step_idx + 1)
 
-      if (this%integratechanges == 1) then
-        if (this%istor_coef == 0) then
-          stor_coef = this%oldss(n) * H
+        if (this%iconvert(n) /= 0) then
+          saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
         else
-          stor_coef = this%oldss(n)
-        end if
-      end if
-
-      if (this%iorig_ss == 0) then
-        z = bt + DHALF * H * saturation
-      else
-        z = DZERO
-      end if
-
-      if (this%iconf_ss == 1) then
-        if (saturation == DONE) then
           saturation = DONE
-          z = tp
-        else
-          saturation = DZERO
         end if
-      end if
 
-      rrhs = -stor_coef * this%dis%area(n) * saturation * (hold(n) - z) * tled
-      rhs(n) = rhs(n) + rrhs
+        ! TODO: Add a ss_buffer to store previous time step sy values if integratechanges is true.
+        ! For now just use oldsy for all previous time steps when integratechanges is true.
+        if (this%integratechanges == 1) then
+          if (this%istor_coef == 0) then
+            stor_coef = this%oldss(n) * thick
+          else
+            stor_coef = this%oldss(n)
+          end if
+        end if
+
+        if (this%iorig_ss == 0) then
+          z = bt + DHALF * thick * saturation
+        else
+          z = DZERO
+        end if
+
+        if (this%iconf_ss == 1) then
+          if (saturation == DONE) then
+            saturation = DONE
+            z = tp
+          else
+            saturation = DZERO
+          end if
+        end if
+
+        rrhs = stor_coef * this%dis%area(n) * saturation * (h(n) - z) * weight
+        rhs(n) = rhs(n) + rrhs
+      end do
     end do
 
   end subroutine sto_fc_ss
@@ -400,7 +406,6 @@ contains
     integer(I4B), intent(in), dimension(:) :: idxglo !< global index model to solution
     real(DP), intent(inout), dimension(:) :: rhs !< right-hand side
     ! -- local variables
-    real(DP) :: rhsterm
     real(DP) :: rrhs
     integer(I4B) :: idiag
     integer(I4B) :: n
@@ -419,7 +424,6 @@ contains
     do n = 1, this%dis%nodes
       if (this%ibound(n) < 1) cycle
       if (this%iconvert(n) == 0) cycle
-      rhsterm = DZERO
       rrhs = DZERO
       !
       ! -- aquifer elevations and thickness
@@ -581,40 +585,40 @@ contains
     real(DP), dimension(:), contiguous, intent(in) :: hnew !< current head
     type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
     ! local variables
-    real(DP), pointer, dimension(:), contiguous :: hold !< previous head
 
-    hold => hold_buffer%rget(1)
     !
     ! -- specific storage contribution
-    call this%sto_cq_ss(flowja, hnew, hold)
+    call this%sto_cq_ss(flowja, hnew, hold_buffer)
     !
     ! -- specific yield contributions
     call this%sto_cq_sy(flowja, hnew, hold_buffer)
 
   end subroutine sto_cq
 
-  subroutine sto_cq_ss(this, flowja, hnew, hold)
+  subroutine sto_cq_ss(this, flowja, hnew, hold_buffer)
     ! -- modules
-    use TdisModule, only: delt
+    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< connection flows
-    real(DP), dimension(:), contiguous, intent(in) :: hnew !< current head
-    real(DP), dimension(:), contiguous, intent(in) :: hold !< previous head
+    real(DP), dimension(:), contiguous, intent(in), target :: hnew !< current head
+    type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
     ! -- local variables
     integer(I4B) :: n
     integer(I4B) :: idiag
     real(DP) :: rate
-    real(DP) :: tled
     real(DP) :: tp
     real(DP) :: bt
     real(DP) :: coef
-    real(DP) :: H
+    real(DP) :: thick
     real(DP) :: saturation
     real(DP) :: satderivative
     real(DP) :: rrhs
     real(DP) :: z
     real(DP) :: stor_coef
+    real(DP), pointer, dimension(:), contiguous :: h
+    real(DP) :: weight
+    integer(I4B) :: step_idx
     !
     ! -- initialize strg arrays
     do n = 1, this%dis%nodes
@@ -622,86 +626,90 @@ contains
     end do
     !
     ! -- Set strt to zero or calculate terms if not steady-state stress period
-    if (this%iss == 0) then
-      !
-      ! -- set variables
-      tled = DONE / delt
-      !
-      ! -- Calculate storage change
-      do n = 1, this%dis%nodes
-        if (this%ibound(n) <= 0) cycle
+    if (this%iss /= 0) return
+    !
+    ! -- Calculate storage change
+    do n = 1, this%dis%nodes
+      if (this%ibound(n) <= 0) cycle
 
-        rate = DZERO
-        ! -- aquifer elevations and thickness
-        tp = this%dis%top(n)
-        bt = this%dis%bot(n)
-        H = tp - bt
-        !
-        ! -- calculate saturation and saturation derivative for current head
-        if (this%istor_coef == 0) then
-          stor_coef = this%ss(n) * H
-        else
-          stor_coef = this%ss(n)
-        end if
+      h => hnew
+      weight = time_scheme%get_weight(1)
 
-        if (this%iconvert(n) /= 0) then
-          saturation = sQuadraticSaturation(tp, bt, hnew(n), this%satomega)
-          satderivative = &
-            sQuadraticSaturationDerivative(tp, bt, hnew(n), this%satomega)
-        else
+      rate = DZERO
+      ! -- aquifer elevations and thickness
+      tp = this%dis%top(n)
+      bt = this%dis%bot(n)
+      thick = tp - bt
+      !
+      ! -- calculate saturation and saturation derivative for current head
+      if (this%istor_coef == 0) then
+        stor_coef = this%ss(n) * thick
+      else
+        stor_coef = this%ss(n)
+      end if
+
+      if (this%iconvert(n) /= 0) then
+        saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
+        satderivative = &
+          sQuadraticSaturationDerivative(tp, bt, h(n), this%satomega)
+      else
+        saturation = DONE
+        satderivative = DZERO
+      end if
+
+      if (this%iorig_ss == 0) then
+        z = bt + DHALF * thick * saturation
+      else
+        z = DZERO
+      end if
+
+      ! When this flag is set the formulation is altered.
+      ! A cell is either fully saturated or unsaturated
+      if (this%iconf_ss == 1) then
+        if (saturation == DONE) then
           saturation = DONE
-          satderivative = DZERO
-        end if
-
-        if (this%iorig_ss == 0) then
-          z = bt + DHALF * H * saturation
+          z = tp
         else
-          z = DZERO
+          saturation = DZERO
         end if
+        satderivative = DZERO
+      end if
 
-        ! When this flag is set the formulation is altered.
-        ! A cell is either fully saturated or unsaturated
-        if (this%iconf_ss == 1) then
-          if (saturation == DONE) then
-            saturation = DONE
-            z = tp
-          else
-            saturation = DZERO
-          end if
-          satderivative = DZERO
-        end if
+      !
+      ! -- Matrix contribution for storage term
+      coef = -stor_coef * this%dis%area(n) * &
+             ((h(n) - z) * satderivative + saturation) * weight
+      rate = rate + coef * h(n)
+      !
+      ! -- Right-hand side contribution due to linearization
+      rrhs = stor_coef * this%dis%area(n) * saturation * (h(n) - z) * weight
+      rate = rate - rrhs
 
-        !
-        ! -- Matrix contribution for storage term
-        coef = -stor_coef * this%dis%area(n) * &
-               ((hnew(n) - z) * satderivative + saturation) * tled
-        rate = rate + coef * hnew(n)
-        !
-        ! -- Right-hand side contribution due to linearization
-        rrhs = stor_coef * this%dis%area(n) * saturation * (hnew(n) - z) * tled
-        rate = rate - rrhs
+      rrhs = -stor_coef * this%dis%area(n) * &
+             ((h(n) - z) * satderivative + saturation) * h(n) * weight
+      rate = rate - rrhs
+      !
+      ! -- Right-hand side contribution from previous time step
+      do step_idx = 1, time_scheme%get_time_iteration_steps()
+        h => hold_buffer%rget(step_idx)
+        weight = time_scheme%get_weight(step_idx + 1)
 
-        rrhs = -stor_coef * this%dis%area(n) * &
-               ((hnew(n) - z) * satderivative + saturation) * hnew(n) * tled
-        rate = rate - rrhs
-        !
-        ! -- Right-hand side contribution from previous time step
         if (this%iconvert(n) /= 0) then
-          saturation = sQuadraticSaturation(tp, bt, hold(n), this%satomega)
+          saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
         else
           saturation = DONE
         end if
 
         if (this%integratechanges == 1) then
           if (this%istor_coef == 0) then
-            stor_coef = this%oldss(n) * H
+            stor_coef = this%oldss(n) * thick
           else
             stor_coef = this%oldss(n)
           end if
         end if
 
         if (this%iorig_ss == 0) then
-          z = bt + DHALF * H * saturation
+          z = bt + DHALF * thick * saturation
         else
           z = DZERO
         end if
@@ -715,17 +723,17 @@ contains
           end if
         end if
 
-        rrhs = -stor_coef * this%dis%area(n) * saturation * (hold(n) - z) * tled
+        rrhs = stor_coef * this%dis%area(n) * saturation * (h(n) - z) * weight
         rate = rate - rrhs
-        !
-        ! -- save rate
-        this%strgss(n) = rate
-        !
-        ! -- add storage term to flowja
-        idiag = this%dis%con%ia(n)
-        flowja(idiag) = flowja(idiag) + rate
       end do
-    end if
+      !
+      ! -- save rate
+      this%strgss(n) = rate
+      !
+      ! -- add storage term to flowja
+      idiag = this%dis%con%ia(n)
+      flowja(idiag) = flowja(idiag) + rate
+    end do
 
   end subroutine sto_cq_ss
 
@@ -749,7 +757,7 @@ contains
     real(DP) :: saturation
     real(DP) :: satderivative
     real(DP), pointer :: sy
-    real(DP), pointer, dimension(:), contiguous :: h !< previous head
+    real(DP), pointer, dimension(:), contiguous :: h
     real(DP) :: weight
     integer(I4B) :: step_idx
     !
