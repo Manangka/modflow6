@@ -8,6 +8,7 @@ module TdisModule
   use SimVariablesModule, only: iout, isim_level
   use ConstantsModule, only: LENVARNAME, LINELENGTH, LENDATETIME, LENMEMPATH, VALL
   use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+  use CircularBufferModule, only: CircularBufferType
   !
   implicit none
   !
@@ -44,6 +45,7 @@ module TdisModule
   character(len=LINELENGTH), pointer :: input_fname => null() !< input filename for tdis
   integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
   class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
+  class(CircularBufferType), public, allocatable :: delt_buffer
   !
 contains
 
@@ -93,9 +95,11 @@ contains
     ! -- Create time scheme instance
     select case (itimescheme)
     case (TIME_SCHEME_EULER)
-      allocate (time_scheme, source=ImplicitEulerSchemeType())
+      delt_buffer = CircularBufferType(1, 1, 'DELT_BUFFER', 'TDIS')
+      allocate (time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
     case (TIME_SCHEME_BDF2)
-      allocate (time_scheme, source=BDF2SchemeType(kstp, kper))
+      delt_buffer = CircularBufferType(2, 1, 'DELT_BUFFER', 'TDIS')
+      allocate (time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
     case default
       call store_error("Unknown time scheme", terminate=.TRUE.)
     end select
@@ -201,7 +205,7 @@ contains
     totimc = totimsav
     totim = totimsav + delt
     pertim = pertimsav + delt
-    call time_scheme%update_delt(delt)
+    call delt_buffer%add([delt])
     !
     ! -- Set end of period indicator
     endofperiod = .false.
@@ -244,8 +248,8 @@ contains
     totim = totimsav + delt
     pertim = pertimsav + delt
     ! -- Replace delt in time scheme
-    call time_scheme%pop_delt()
-    call time_scheme%update_delt(delt)
+    call delt_buffer%pop()
+    call delt_buffer%add([delt])
     !
     ! -- Set end of period indicator
     endofperiod = .false.
