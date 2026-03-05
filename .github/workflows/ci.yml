@@ -35,6 +35,7 @@ on:
       - "doc/**.sh"
       - "doc/**.xlsx"
       - ".hpc/**"
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -268,7 +269,7 @@ jobs:
 
       - name: Upload failed test output
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: failed-smoke-${{ runner.os }}-${{ env.FC }}-${{ env.FC_V }}
           path: modflow6/autotest/.failed
@@ -414,7 +415,7 @@ jobs:
 
       - name: Upload build log
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.os }}-${{ env.FC }}-${{ env.FC_V }}-meson-log.txt
           path: modflow6/builddir/meson-logs/meson-log.txt
@@ -520,7 +521,7 @@ jobs:
 
       - name: Upload failed test output
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: failed-${{ matrix.os }}-${{ env.FC }}-${{ env.FC_V }}
           path: modflow6/autotest/.failed
@@ -692,7 +693,7 @@ jobs:
 
       - name: Upload failed test output
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: failed-${{ matrix.os }}-${{ env.FC }}-${{ env.FC_V }}
           path: modflow6/autotest/.failed
@@ -787,7 +788,7 @@ jobs:
 
       - name: Upload failed test output
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: failed-${{ matrix.os }}-ext
           path: modflow6/autotest/.failed
