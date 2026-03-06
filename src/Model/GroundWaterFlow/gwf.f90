@@ -506,8 +506,14 @@ contains
     if (this%ingnc > 0) call this%gnc%gnc_fc(kiter, matrix_sln)
     ! -- storage
     if (this%insto > 0) then
-      call this%sto%sto_fc(kiter, this%xold_buffer, this%x, matrix_sln, &
-                           this%idxglo, this%rhs)
+      if (inwtsto == 0) then
+        call this%sto%sto_fc(kiter, this%xold_buffer, this%x, matrix_sln, &
+                             this%idxglo, this%rhs)
+      else
+        ! -- Fill newton terms for storage
+        call this%sto%sto_fn(kiter, this%xold_buffer, this%x, matrix_sln, &
+                             this%idxglo, this%rhs)
+      end if
     end if
     ! -- skeletal storage, compaction, and land subsidence
     if (this%incsub > 0) then
@@ -534,14 +540,6 @@ contains
                              ivarcv_opt=this%npf%ivarcv, &
                              ictm1_opt=this%npf%icelltype, &
                              ictm2_opt=this%npf%icelltype)
-      end if
-    end if
-    !
-    ! -- Fill newton terms for storage
-    if (this%insto > 0) then
-      if (inwtsto /= 0) then
-        call this%sto%sto_fn(kiter, this%xold, this%x, matrix_sln, &
-                             this%idxglo, this%rhs)
       end if
     end if
     !
