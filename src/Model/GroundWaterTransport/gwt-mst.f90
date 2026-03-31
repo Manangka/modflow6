@@ -392,6 +392,7 @@ contains
 
       rrhs = volfracm * rhobm * sat_new * this%isotherm%value(cnew, n) * &
              vcell * weight
+
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step
