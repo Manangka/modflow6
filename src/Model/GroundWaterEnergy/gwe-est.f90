@@ -25,8 +25,7 @@ module GweEstModule
   use GweInputDataModule, only: GweInputDataType
   use TimeSchemeEnumModule
   use TimeSchemeInterfaceModule, only: TimeSchemeInterface
-  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
-  use BDF2SchemeModule, only: BDF2SchemeType
+  use TimeSchemeFactoryModule, only: create_time_scheme
 
   implicit none
   public :: GweEstType
@@ -142,7 +141,6 @@ contains
   !<
   subroutine est_ar(this, dis, ibound)
     ! -- modules
-    use TdisModule, only: delt_buffer, kper, kstp
     use GweInputDataModule, only: set_gwe_dat_ptrs
     ! -- dummy
     class(GweEstType), intent(inout) :: this !< GweEstType object
@@ -169,15 +167,8 @@ contains
     ! -- read the gridded data
     call this%source_data()
     !
-    ! -- Allocate time scheme instance
-    select case (this%itimescheme)
-    case (TIME_SCHEME_EULER)
-      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
-    case (TIME_SCHEME_BDF2)
-      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
-    case default
-      call store_error("Unknown time scheme", terminate=.TRUE.)
-    end select
+    ! -- Create time scheme instance
+    this%time_scheme => create_time_scheme(this%itimescheme)
     !
     ! -- set data required by other packages
     call this%gwecommon%set_gwe_dat_ptrs(this%rhow, this%cpw, this%latheatvap, &

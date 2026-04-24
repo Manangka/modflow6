@@ -24,8 +24,7 @@ module GwfStoModule
   use CircularBufferModule, only: CircularBufferType
   use TimeSchemeEnumModule
   use TimeSchemeInterfaceModule, only: TimeSchemeInterface
-  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
-  use BDF2SchemeModule, only: BDF2SchemeType
+  use TimeSchemeFactoryModule, only: create_time_scheme
 
   implicit none
   public :: GwfStoType, sto_cr
@@ -118,7 +117,6 @@ contains
     ! -- modules
     use MemoryManagerModule, only: mem_setptr
     use MemoryHelperModule, only: create_mem_path
-    use TdisModule, only: delt_buffer, kper, kstp
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     class(DisBaseType), pointer, intent(in) :: dis !< model discretization object
@@ -152,15 +150,8 @@ contains
     ! -- read the data block
     call this%source_data()
     !
-    ! -- Allocate time scheme instance
-    select case (this%itimescheme)
-    case (TIME_SCHEME_EULER)
-      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
-    case (TIME_SCHEME_BDF2)
-      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
-    case default
-      call store_error("Unknown time scheme", terminate=.TRUE.)
-    end select
+    ! -- Create time scheme instance
+    this%time_scheme => create_time_scheme(this%itimescheme)
     !
     ! -- TVS
     if (this%intvs /= 0) then

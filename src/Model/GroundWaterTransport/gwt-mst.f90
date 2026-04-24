@@ -25,8 +25,7 @@ module GwtMstModule
   use IsothermEnumModule
   use TimeSchemeEnumModule
   use TimeSchemeInterfaceModule, only: TimeSchemeInterface
-  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
-  use BDF2SchemeModule, only: BDF2SchemeType
+  use TimeSchemeFactoryModule, only: create_time_scheme
 
   implicit none
   public :: GwtMstType
@@ -148,7 +147,6 @@ contains
   !<
   subroutine mst_ar(this, dis, ibound)
     ! -- modules
-    use TdisModule, only: delt_buffer, kper, kstp
     ! -- dummy
     class(GwtMstType), intent(inout) :: this !< GwtMstType object
     class(DisBaseType), pointer, intent(in) :: dis !< pointer to dis package
@@ -175,15 +173,8 @@ contains
     ! -- source the data block
     call this%source_data()
     !
-    ! -- Allocate time scheme instance
-    select case (this%itimescheme)
-    case (TIME_SCHEME_EULER)
-      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
-    case (TIME_SCHEME_BDF2)
-      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
-    case default
-      call store_error("Unknown time scheme", terminate=.TRUE.)
-    end select
+    ! -- Create time scheme instance
+    this%time_scheme => create_time_scheme(this%itimescheme)
     !
     ! -- Create isotherm object if sorption is active
     this%isotherm => create_isotherm(this%isrb, this%distcoef, this%sp2)

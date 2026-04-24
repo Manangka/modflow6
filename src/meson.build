@@ -381,6 +381,7 @@ modflow_sources = files(
     'Timing' / 'TimeScheme' / 'BDF2Scheme.f90',
     'Timing' / 'TimeScheme' / 'ImplicitEulerScheme.f90',
     'Timing' / 'TimeScheme' / 'TimeSchemeEnum.f90',
+    'Timing' / 'TimeScheme' / 'TimeSchemeFactory.f90',
     'Timing' / 'TimeScheme' / 'TimeSchemeInterface.f90',
     'Utilities' / 'ArrayRead' / 'ArrayReaderBase.f90',
     'Utilities' / 'ArrayRead' / 'Double1dReader.f90',

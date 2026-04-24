@@ -523,6 +523,7 @@
 		<File RelativePath="..\src\Timing\TimeScheme\BDF2Scheme.f90"/>
 		<File RelativePath="..\src\Timing\TimeScheme\ImplicitEulerScheme.f90"/>
 		<File RelativePath="..\src\Timing\TimeScheme\TimeSchemeEnum.f90"/>
+		<File RelativePath="..\src\Timing\TimeScheme\TimeSchemeFactory.f90"/>
 		<File RelativePath="..\src\Timing\TimeScheme\TimeSchemeInterface.f90"/></Filter>
 		<File RelativePath="..\src\Timing\ats.f90"/>
 		<File RelativePath="..\src\Timing\tdis.f90"/></Filter>
