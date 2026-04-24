@@ -215,13 +215,11 @@ contains
   !<
   subroutine gwf_df(this)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwfModelType) :: this
     ! -- local
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
-    integer(I4B) :: num_steps
     !
     ! -- Define packages and utility objects
     call this%dis%dis_df()
@@ -247,12 +245,6 @@ contains
       packobj => GetBndFromList(this%bndlist, ip)
       call packobj%bnd_df(this%neq, this%dis)
     end do
-    !
-    ! -- Allocate buffers
-    num_steps = time_scheme%get_num_steps()
-    allocate (this%xold_buffer, source= &
-              CircularBufferType(num_steps, this%neq, &
-                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
     call this%obs%obs_df(this%iout, this%name, 'GWF', this%dis)
@@ -322,11 +314,13 @@ contains
   !!
   !<
   subroutine gwf_ar(this)
+    ! -- modules
     ! -- dummy
     class(GwfModelType) :: this
     ! -- locals
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
+    integer(I4B) :: num_steps
     !
     ! -- Allocate and read modules attached to model
     if (this%inic > 0) call this%ic%ic_ar(this%x)
@@ -343,6 +337,16 @@ contains
     !
     ! -- Call dis_ar to write binary grid file
     call this%dis%dis_ar(this%npf%icelltype)
+    !
+    ! -- Allocate buffers
+    if (this%insto > 0) then
+      num_steps = this%sto%time_scheme%get_num_steps()
+    else
+      num_steps = 1
+    end if
+    allocate (this%xold_buffer, source= &
+              CircularBufferType(num_steps, this%neq, &
+                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- set up output control
     call this%oc%oc_ar(this%x, this%dis, this%npf%hnoflo)

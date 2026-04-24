@@ -148,13 +148,11 @@ contains
   subroutine gwt_df(this)
     ! -- modules
     use SimModule, only: store_error
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtModelType) :: this
     ! -- local
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
-    integer(I4B) :: num_steps
     !
     ! -- Define packages and utility objects
     call this%dis%dis_df()
@@ -192,15 +190,6 @@ contains
       packobj%TsManager%iout = this%iout
       packobj%TasManager%iout = this%iout
     end do
-    !
-    ! -- Allocate buffers
-    num_steps = time_scheme%get_num_steps()
-    allocate (this%gwfsat_buffer, source= &
-              CircularBufferType(num_steps, this%dis%nodes, &
-                                 'GWFSATOLD_BUFFER', this%memoryPath))
-    allocate (this%xold_buffer, source= &
-              CircularBufferType(num_steps, this%neq, &
-                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- Store information needed for observations
     call this%obs%obs_df(this%iout, this%name, 'GWT', this%dis)
@@ -268,6 +257,7 @@ contains
     ! -- locals
     integer(I4B) :: ip
     class(BndType), pointer :: packobj
+    integer(I4B) :: num_steps
     !
     ! -- Allocate and read modules attached to model
     call this%fmi%fmi_ar(this%ibound)
@@ -290,6 +280,19 @@ contains
     !
     ! -- Call dis_ar to write binary grid file
     !call this%dis%dis_ar(this%npf%icelltype)
+    !
+    ! -- Allocate buffers
+    if (this%inmst > 0) then
+      num_steps = this%mst%time_scheme%get_num_steps()
+    else
+      num_steps = 1
+    end if
+    allocate (this%gwfsat_buffer, source= &
+              CircularBufferType(num_steps, this%dis%nodes, &
+                                 'GWFSATOLD_BUFFER', this%memoryPath))
+    allocate (this%xold_buffer, source= &
+              CircularBufferType(num_steps, this%neq, &
+                                 'XOLD_BUFFER', this%memoryPath))
     !
     ! -- set up output control
     call this%oc%oc_ar(this%x, this%dis, DHNOFLO, this%depvartype)

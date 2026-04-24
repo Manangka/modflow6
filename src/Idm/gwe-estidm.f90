@@ -18,6 +18,7 @@ module GweEstInputModule
     logical :: rhow = .false.
     logical :: cpw = .false.
     logical :: latheatvap = .false.
+    logical :: time_scheme = .false.
     logical :: porosity = .false.
     logical :: decay_water = .false.
     logical :: decay_solid = .false.
@@ -148,6 +149,25 @@ module GweEstInputModule
     )
 
   type(InputParamDefinitionType), parameter :: &
+    gweest_time_scheme = InputParamDefinitionType &
+    ( &
+    'GWE', & ! component
+    'EST', & ! subcomponent
+    'OPTIONS', & ! block
+    'TIME_SCHEME', & ! tag name
+    'TIME_SCHEME', & ! fortran variable
+    'STRING', & ! type
+    '', & ! shape
+    'time discretization scheme', & ! longname
+    .false., & ! required
+    .false., & ! developmode
+    .false., & ! multi-record
+    .false., & ! preserve case
+    .false., & ! layered
+    .false. & ! timeseries
+    )
+
+  type(InputParamDefinitionType), parameter :: &
     gweest_porosity = InputParamDefinitionType &
     ( &
     'GWE', & ! component
@@ -251,6 +271,7 @@ module GweEstInputModule
     gweest_rhow, &
     gweest_cpw, &
     gweest_latheatvap, &
+    gweest_time_scheme, &
     gweest_porosity, &
     gweest_decay_water, &
     gweest_decay_solid, &

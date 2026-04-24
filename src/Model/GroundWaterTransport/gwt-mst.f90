@@ -11,7 +11,7 @@ module GwtMstModule
 
   use KindModule, only: DP, I4B
   use ConstantsModule, only: DONE, DZERO, IZERO, DTWO, DHALF, LENBUDTXT, &
-                             MAXCHARLEN, MNORMAL, LINELENGTH, DHNOFLO
+                             MAXCHARLEN, MNORMAL, LINELENGTH, DHNOFLO, LENVARNAME
   use SimVariablesModule, only: errmsg, warnmsg
   use SimModule, only: store_error, count_errors, &
                        store_warning, store_error_filename
@@ -23,6 +23,10 @@ module GwtMstModule
   use IsothermInterfaceModule, only: IsothermType
   use IsothermFactoryModule, only: create_isotherm
   use IsothermEnumModule
+  use TimeSchemeEnumModule
+  use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
+  use BDF2SchemeModule, only: BDF2SchemeType
 
   implicit none
   public :: GwtMstType
@@ -74,6 +78,8 @@ module GwtMstModule
     real(DP), dimension(:), pointer, contiguous :: csrb => null() !< sorbate concentration
     class(IsothermType), pointer :: isotherm => null() !< pointer to isotherm object
     ! -- misc
+    integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
+    class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
     integer(I4B), dimension(:), pointer, contiguous :: ibound => null() !< pointer to model ibound
     type(TspFmiType), pointer :: fmi => null() !< pointer to fmi object
 
@@ -142,6 +148,7 @@ contains
   !<
   subroutine mst_ar(this, dis, ibound)
     ! -- modules
+    use TdisModule, only: delt_buffer, kper, kstp
     ! -- dummy
     class(GwtMstType), intent(inout) :: this !< GwtMstType object
     class(DisBaseType), pointer, intent(in) :: dis !< pointer to dis package
@@ -167,6 +174,16 @@ contains
     !
     ! -- source the data block
     call this%source_data()
+    !
+    ! -- Allocate time scheme instance
+    select case (this%itimescheme)
+    case (TIME_SCHEME_EULER)
+      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
+    case (TIME_SCHEME_BDF2)
+      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
+    case default
+      call store_error("Unknown time scheme", terminate=.TRUE.)
+    end select
     !
     ! -- Create isotherm object if sorption is active
     this%isotherm => create_isotherm(this%isrb, this%distcoef, this%sp2)
@@ -224,7 +241,6 @@ contains
   subroutine mst_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
                         matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -255,19 +271,19 @@ contains
       gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
 
       Vwater = Vcell * gwfsat(n) * this%thetam(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coeff = Vwater * weight
 
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
 
       ! -- Right-hand side contribution from previous time steps
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         gwfsat => gwfsat_buffer%rget(step_idx)
 
         Vwater = Vcell * gwfsat(n) * this%thetam(n)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
         coeff = Vwater * weight
 
         rhs(n) = rhs(n) + coeff * cold(n)
@@ -342,7 +358,6 @@ contains
   subroutine mst_fc_srb(this, nodes, cold_buffer, gwfsat_buffer, nja, &
                         matrix_sln, idxglo, rhs, cnew)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -377,7 +392,7 @@ contains
       rhobm = this%bulk_density(n)
 
       sat_new = this%fmi%gwfsat(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       !
       ! -- Matrix contribution for sorption term
       hhcof = -volfracm * rhobm * sat_new * this%isotherm%derivative(cnew, n) &
@@ -396,10 +411,10 @@ contains
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         sat_old => gwfsat_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         rrhs = volfracm * rhobm * sat_old(n) * this%isotherm%value(cold, n) * &
                vcell * weight
@@ -549,7 +564,6 @@ contains
   !<
   subroutine mst_cq_sto(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
@@ -582,18 +596,18 @@ contains
       gwfsat => this%fmi%gwfsat
 
       Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coeff = Vwater * weight
 
       rate = rate - coeff * cnew(n)
       !
       ! -- Right-hand side contribution from previous time steps
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         gwfsat => gwfsat_buffer%rget(step_idx)
 
         Vwater = Vcell * gwfsat(n) * this%thetam(n)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
         coeff = Vwater * weight
 
         rate = rate - coeff * cold(n)
@@ -668,7 +682,6 @@ contains
   !<
   subroutine mst_cq_srb(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
@@ -707,7 +720,7 @@ contains
       volfracm = this%get_volfracm(n)
 
       sat_new = this%fmi%gwfsat(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       !
       ! -- Matrix contribution for sorption term
       contribution = -volfracm * rhobm * sat_new * &
@@ -725,10 +738,10 @@ contains
       rate = rate - contribution
       !
       ! -- Right-hand side contribution from previous time step
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         sat_old => gwfsat_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         contribution = -volfracm * rhobm * sat_old(n) * &
                        this%isotherm%value(cold, n) * Vcell * weight
@@ -1033,6 +1046,11 @@ contains
       deallocate (this%isotherm)
       nullify (this%isotherm)
     end if
+
+    if (associated(this%time_scheme)) then
+      deallocate (this%time_scheme)
+      nullify (this%time_scheme)
+    end if
     !
     ! -- deallocate parent
     call this%NumericalPackageType%da()
@@ -1055,11 +1073,13 @@ contains
     call mem_allocate(this%isrb, 'ISRB', this%memoryPath)
     call mem_allocate(this%ioutsorbate, 'IOUTSORBATE', this%memoryPath)
     call mem_allocate(this%idcy, 'IDCY', this%memoryPath)
+    call mem_allocate(this%itimescheme, 'ITIMESCHEME', this%memoryPath)
     !
     ! -- Initialize
     this%isrb = IZERO
     this%ioutsorbate = 0
     this%idcy = IZERO
+    this%itimescheme = IZERO
   end subroutine allocate_scalars
 
   !> @ brief Allocate arrays for package
@@ -1168,6 +1188,8 @@ contains
     type(GwtMstParamFoundType) :: found
     character(len=LENVARNAME), dimension(3) :: sorption_method = &
       &[character(len=LENVARNAME) :: 'LINEAR', 'FREUNDLICH', 'LANGMUIR']
+    character(len=LENVARNAME), dimension(2) :: scheme = &
+      &[character(len=LENVARNAME) :: 'EULER', 'BDF2']
     character(len=LINELENGTH) :: fname
     !
     ! -- update defaults with memory sourced values
@@ -1181,6 +1203,8 @@ contains
                        sorption_method, found%sorption)
     call mem_set_value(fname, 'SORBATEFILE', this%input_mempath, &
                        found%sorbatefile)
+    call mem_set_value(this%itimescheme, 'TIME_SCHEME', this%input_mempath, &
+                       scheme, found%time_scheme)
 
     ! -- found side effects
     if (found%save_flows) this%ipakcb = -1
@@ -1198,6 +1222,16 @@ contains
       this%ioutsorbate = getunit()
       call openfile(this%ioutsorbate, this%iout, fname, 'DATA(BINARY)', &
                     form, access, 'REPLACE', mode_opt=MNORMAL)
+    end if
+    if (found%time_scheme) then
+      if (this%itimescheme == IZERO) then
+        call store_error('Unknown time scheme was specified. &
+                         &Must be "EULER" or "BDF2"')
+        call store_error_filename(this%input_fname)
+      else
+        ! scheme parameters are 0 based
+        this%itimescheme = this%itimescheme - 1
+      end if
     end if
     !
     ! -- log options

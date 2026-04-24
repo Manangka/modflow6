@@ -56,6 +56,15 @@ description latent heat of vaporization is the amount of energy that is required
 default_value 2453500.0
 mf6internal latheatvap
 
+block options
+name time_scheme
+type string
+valid euler bdf2
+reader urword
+optional true
+longname time integration scheme
+description scheme used to increment time. Can be euler, or bdf2. If not specified, euler is the default scheme.
+
 # --------------------- gwe est griddata ---------------------
 
 block griddata

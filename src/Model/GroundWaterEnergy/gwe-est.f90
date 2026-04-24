@@ -23,6 +23,10 @@ module GweEstModule
   use TspFmiModule, only: TspFmiType
   use CircularBufferModule, only: CircularBufferType
   use GweInputDataModule, only: GweInputDataType
+  use TimeSchemeEnumModule
+  use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
+  use BDF2SchemeModule, only: BDF2SchemeType
 
   implicit none
   public :: GweEstType
@@ -68,6 +72,8 @@ module GweEstModule
     real(DP), dimension(:), pointer, contiguous :: decaylasts => null() !< solid phase decay rate used for last iteration (needed for zero order decay)
     !
     ! -- misc
+    integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
+    class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
     integer(I4B), dimension(:), pointer, contiguous :: ibound => null() !< pointer to model ibound
     type(TspFmiType), pointer :: fmi => null() !< pointer to fmi object
     type(GweInputDataType), pointer :: gwecommon => null() !< pointer to shared gwe data used by multiple packages but set in est
@@ -136,6 +142,7 @@ contains
   !<
   subroutine est_ar(this, dis, ibound)
     ! -- modules
+    use TdisModule, only: delt_buffer, kper, kstp
     use GweInputDataModule, only: set_gwe_dat_ptrs
     ! -- dummy
     class(GweEstType), intent(inout) :: this !< GweEstType object
@@ -161,6 +168,16 @@ contains
     !
     ! -- read the gridded data
     call this%source_data()
+    !
+    ! -- Allocate time scheme instance
+    select case (this%itimescheme)
+    case (TIME_SCHEME_EULER)
+      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
+    case (TIME_SCHEME_BDF2)
+      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
+    case default
+      call store_error("Unknown time scheme", terminate=.TRUE.)
+    end select
     !
     ! -- set data required by other packages
     call this%gwecommon%set_gwe_dat_ptrs(this%rhow, this%cpw, this%latheatvap, &
@@ -210,7 +227,6 @@ contains
   subroutine est_fc_sto(this, nodes, cold_buffer, gwfsat_buffer, nja, &
                         matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer, intent(in) :: nodes !< number of nodes
@@ -244,19 +260,19 @@ contains
       gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
 
       vwater = vcell * gwfsat(n) * this%porosity(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coeff = (this%eqnsclfac * vwater + term) * weight
 
       idiag = this%dis%con%ia(n)
       call matrix_sln%add_value_pos(idxglo(idiag), -coeff)
       !
       ! -- Right-hand side contribution from previous time steps
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         gwfsat => gwfsat_buffer%rget(step_idx)
 
         vwater = vcell * gwfsat(n) * this%porosity(n)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
         coeff = (this%eqnsclfac * vwater + term) * weight
 
         rhs(n) = rhs(n) + coeff * cold(n)
@@ -398,7 +414,6 @@ contains
   !<
   subroutine est_cq_sto(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy
     class(GweEstType) :: this !< GweEstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
@@ -433,18 +448,18 @@ contains
       gwfsat => this%fmi%gwfsat ! Cell saturation. Same as water saturation?
 
       vwater = vcell * gwfsat(n) * this%porosity(n)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coeff = (this%eqnsclfac * vwater + term) * weight
 
       rate = rate - coeff * cnew(n)
       !
       ! -- Right-hand side contribution from previous time steps
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         cold => cold_buffer%rget(step_idx)
         gwfsat => gwfsat_buffer%rget(step_idx)
 
         vwater = vcell * gwfsat(n) * this%porosity(n)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
         coeff = (this%eqnsclfac * vwater + term) * weight
 
         rate = rate - coeff * cold(n)
@@ -677,6 +692,12 @@ contains
       this%fmi => null()
     end if
     !
+    ! -- Objects
+    if (associated(this%time_scheme)) then
+      deallocate (this%time_scheme)
+      nullify (this%time_scheme)
+    end if
+    !
     ! -- deallocate parent
     call this%NumericalPackageType%da()
   end subroutine est_da
@@ -700,6 +721,7 @@ contains
     call mem_allocate(this%latheatvap, 'LATHEATVAP', this%memoryPath)
     call mem_allocate(this%idcy, 'IDCY', this%memoryPath)
     call mem_allocate(this%idcysrc, 'IDCYSRC', this%memoryPath)
+    call mem_allocate(this%itimescheme, 'ITIMESCHEME', this%memoryPath)
     !
     ! -- Initialize
     this%cpw = 4184.0_DP
@@ -707,6 +729,7 @@ contains
     this%latheatvap = 2453500.0_DP
     this%idcy = IZERO
     this%idcysrc = IZERO
+    this%itimescheme = IZERO
   end subroutine allocate_scalars
 
   !> @ brief Allocate arrays for package
@@ -770,12 +793,15 @@ contains
   !<
   subroutine source_options(this)
     ! -- modules
+    use ConstantsModule, only: LENVARNAME
     use MemoryManagerExtModule, only: mem_set_value
     use GweEstInputModule, only: GweEstParamFoundType
     ! -- dummy
     class(GweEstType) :: this
     ! -- locals
     type(GweEstParamFoundType) :: found
+    character(len=LENVARNAME), dimension(2) :: scheme = &
+      &[character(len=LENVARNAME) :: 'EULER', 'BDF2']
     !
     ! -- update defaults with idm sourced values
     call mem_set_value(this%ipakcb, 'SAVE_FLOWS', this%input_mempath, &
@@ -790,6 +816,8 @@ contains
                        found%rhow)
     call mem_set_value(this%latheatvap, 'LATHEATVAP', this%input_mempath, &
                        found%latheatvap)
+    call mem_set_value(this%itimescheme, 'TIME_SCHEME', this%input_mempath, &
+                       scheme, found%time_scheme)
 
     ! -- update internal state
     if (found%save_flows) this%ipakcb = -1
@@ -818,6 +846,16 @@ contains
           &water must be greater than 0.0.'
         call store_error(errmsg)
         call store_error_filename(this%input_fname)
+      end if
+    end if
+    if (found%time_scheme) then
+      if (this%itimescheme == IZERO) then
+        call store_error('Unknown time scheme was specified. &
+                         &Must be "EULER" or "BDF2"')
+        call store_error_filename(this%input_fname)
+      else
+        ! scheme parameters are 0 based
+        this%itimescheme = this%itimescheme - 1
       end if
     end if
 

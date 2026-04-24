@@ -21,6 +21,7 @@ module GwfStoInputModule
     logical :: tvs6_filename = .false.
     logical :: export_ascii = .false.
     logical :: export_nc = .false.
+    logical :: time_scheme = .false.
     logical :: iorig_ss = .false.
     logical :: iconf_ss = .false.
     logical :: iconvert = .false.
@@ -211,6 +212,25 @@ module GwfStoInputModule
     )
 
   type(InputParamDefinitionType), parameter :: &
+    gwfsto_time_scheme = InputParamDefinitionType &
+    ( &
+    'GWF', & ! component
+    'STO', & ! subcomponent
+    'OPTIONS', & ! block
+    'TIME_SCHEME', & ! tag name
+    'TIME_SCHEME', & ! fortran variable
+    'STRING', & ! type
+    '', & ! shape
+    'time discretization scheme', & ! longname
+    .false., & ! required
+    .false., & ! developmode
+    .false., & ! multi-record
+    .false., & ! preserve case
+    .false., & ! layered
+    .false. & ! timeseries
+    )
+
+  type(InputParamDefinitionType), parameter :: &
     gwfsto_iorig_ss = InputParamDefinitionType &
     ( &
     'GWF', & ! component
@@ -355,6 +375,7 @@ module GwfStoInputModule
     gwfsto_tvs6_filename, &
     gwfsto_export_ascii, &
     gwfsto_export_nc, &
+    gwfsto_time_scheme, &
     gwfsto_iorig_ss, &
     gwfsto_iconf_ss, &
     gwfsto_iconvert, &

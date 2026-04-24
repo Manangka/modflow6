@@ -99,6 +99,15 @@ longname export array variables to netcdf output files.
 description keyword that specifies input gridded arrays should be written to the model output NetCDF file with attributes that support using the generated file as a MODFLOW 6 simulation input.  This option only has an effect when an output model NetCDF file is configured and the simulation is run in VALIDATE mode, otherwise it is ignored.
 extended true
 
+block options
+name time_scheme
+type string
+valid euler bdf2
+reader urword
+optional true
+longname time integration scheme
+description scheme used to increment time. Can be euler, or bdf2. If not specified, euler is the default scheme.
+
 # --------------------- gwt mst griddata ---------------------
 
 block griddata

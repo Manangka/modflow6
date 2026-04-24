@@ -7,7 +7,6 @@ module TdisModule
   use KindModule, only: DP, I4B, LGP
   use SimVariablesModule, only: iout, isim_level
   use ConstantsModule, only: LENVARNAME, LINELENGTH, LENDATETIME, LENMEMPATH, VALL
-  use TimeSchemeInterfaceModule, only: TimeSchemeInterface
   use CircularBufferModule, only: CircularBufferType
   !
   implicit none
@@ -44,7 +43,6 @@ module TdisModule
   character(len=LENMEMPATH), pointer :: input_mempath => null() !< input context mempath for tdis
   character(len=LINELENGTH), pointer :: input_fname => null() !< input filename for tdis
   integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
-  class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
   class(CircularBufferType), public, allocatable :: delt_buffer
   !
 contains
@@ -56,8 +54,6 @@ contains
     use InputOutputModule, only: getunit, openfile
     use ConstantsModule, only: LINELENGTH, DZERO
     use AdaptiveTimeStepModule, only: ats_cr
-    use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
-    use BDF2SchemeModule, only: BDF2SchemeType
     use SimModule, only: store_error, store_error_filename
     ! -- dummy
     character(len=*), intent(in) :: fname
@@ -92,17 +88,9 @@ contains
       call ats_cr(inats, nper)
     end if
     !
-    ! -- Create time scheme instance
-    select case (itimescheme)
-    case (TIME_SCHEME_EULER)
-      delt_buffer = CircularBufferType(1, 1, 'DELT_BUFFER', 'TDIS')
-      allocate (time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
-    case (TIME_SCHEME_BDF2)
-      delt_buffer = CircularBufferType(2, 1, 'DELT_BUFFER', 'TDIS')
-      allocate (time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
-    case default
-      call store_error("Unknown time scheme", terminate=.TRUE.)
-    end select
+    ! -- Create time buffer
+    ! Use a sufficiently long buffer.
+    delt_buffer = CircularBufferType(10, 1, 'DELT_BUFFER', 'TDIS')
 
   end subroutine tdis_cr
 
@@ -414,17 +402,13 @@ contains
     use MemoryManagerExtModule, only: mem_set_value
     use SourceCommonModule, only: filein_fname
     use SimTdisInputModule, only: SimTdisParamFoundType
-    use SimVariablesModule, only: errmsg
     use SimModule, only: store_error, store_error_filename
     ! -- local
     type(SimTdisParamFoundType) :: found
     character(len=LINELENGTH), dimension(6) :: time_units = &
       &[character(len=LINELENGTH) :: 'UNDEFINED', 'SECONDS', 'MINUTES', 'HOURS', &
                                      'DAYS', 'YEARS']
-    character(len=LENVARNAME), dimension(2) :: scheme = &
-      &[character(len=LENVARNAME) :: 'EULER', 'BDF2']
     character(len=LINELENGTH) :: fname
-    logical(LGP) :: found_scheme
     ! -- formats
     character(len=*), parameter :: fmtitmuni = &
       &"(4x,'SIMULATION TIME UNIT IS ',A)"
@@ -439,8 +423,6 @@ contains
                        found%time_units)
     call mem_set_value(datetime0, 'START_DATE_TIME', input_mempath, &
                        found%start_date_time)
-    call mem_set_value(itimescheme, 'SCHEME', &
-                       input_mempath, scheme, found_scheme)
     !
     if (found%time_units) then
       if (itmuni == 0) then
@@ -485,19 +467,6 @@ contains
     !
     if (found%start_date_time) then
       write (iout, fmtdatetime0) datetime0
-    end if
-    !
-    if (found_scheme) then
-      ! should currently be set to index of scheme names
-      if (itimescheme == 0) then
-        write (errmsg, '(a, a)') &
-          'Unknown scheme, must be "EULER" or "BDF2"'
-        call store_error(errmsg)
-        call store_error_filename(input_fname)
-      else
-        ! scheme parameters are 0 based
-        itimescheme = itimescheme - 1
-      end if
     end if
     !
     write (iout, '(1x,a)') 'END OF TDIS OPTIONS'
@@ -554,7 +523,6 @@ contains
     pertimsav = DZERO
     totalsimtime = DZERO
     datetime0 = ''
-    itimescheme = TIME_SCHEME_EULER
   end subroutine tdis_allocate_scalars
 
   !> @brief Allocate tdis arrays

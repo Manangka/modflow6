@@ -9,7 +9,7 @@ module GwfStoModule
 
   use KindModule, only: DP, I4B, LGP
   use ConstantsModule, only: DZERO, DEM6, DEM4, DHALF, DONE, DTWO, &
-                             LENBUDTXT, LINELENGTH
+                             LENBUDTXT, LINELENGTH, IZERO
   use SimVariablesModule, only: errmsg
   use SimModule, only: store_error, store_error_filename, count_errors
   use SmoothingModule, only: sQuadraticSaturation, &
@@ -22,6 +22,10 @@ module GwfStoModule
   use TvsModule, only: TvsType, tvs_cr
   use MatrixBaseModule
   use CircularBufferModule, only: CircularBufferType
+  use TimeSchemeEnumModule
+  use TimeSchemeInterfaceModule, only: TimeSchemeInterface
+  use ImplicitEulerSchemeModule, only: ImplicitEulerSchemeType
+  use BDF2SchemeModule, only: BDF2SchemeType
 
   implicit none
   public :: GwfStoType, sto_cr
@@ -49,6 +53,8 @@ module GwfStoModule
     real(DP), dimension(:), pointer, contiguous, private :: oldsy => null() !< previous time step specific yield
     integer(I4B), pointer :: iper => null() !< input context loaded period
     character(len=:), pointer :: storage !< input context storage string
+    integer(I4B), pointer :: itimescheme => null() !< time discretization scheme
+    class(TimeSchemeInterface), public, pointer :: time_scheme => null() !< time discretization scheme instance
   contains
     procedure :: sto_ar
     procedure :: sto_rp
@@ -112,6 +118,7 @@ contains
     ! -- modules
     use MemoryManagerModule, only: mem_setptr
     use MemoryHelperModule, only: create_mem_path
+    use TdisModule, only: delt_buffer, kper, kstp
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     class(DisBaseType), pointer, intent(in) :: dis !< model discretization object
@@ -137,12 +144,23 @@ contains
     !!
     !! -- Register side effect handlers
     !call this%register_handlers()
+
     !
     ! -- Read storage options
     call this%source_options()
     !
     ! -- read the data block
     call this%source_data()
+    !
+    ! -- Allocate time scheme instance
+    select case (this%itimescheme)
+    case (TIME_SCHEME_EULER)
+      allocate (this%time_scheme, source=ImplicitEulerSchemeType(delt_buffer))
+    case (TIME_SCHEME_BDF2)
+      allocate (this%time_scheme, source=BDF2SchemeType(delt_buffer, kstp, kper))
+    case default
+      call store_error("Unknown time scheme", terminate=.TRUE.)
+    end select
     !
     ! -- TVS
     if (this%intvs /= 0) then
@@ -267,7 +285,6 @@ contains
 
   subroutine sto_fc_ss(this, hold_buffer, hnew, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
@@ -303,7 +320,7 @@ contains
       !
       ! -- aquifer saturation
       h => hnew
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
 
       if (this%istor_coef == 0) then
         stor_coef = this%ss(n) * thick
@@ -354,9 +371,9 @@ contains
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         if (this%iconvert(n) /= 0) then
           saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
@@ -398,7 +415,6 @@ contains
 
   subroutine sto_fc_sy(this, hold_buffer, hnew, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
@@ -438,7 +454,7 @@ contains
       satderivative = &
         sLinearSaturationDerivative(tp, bt, h(n), this%satomega)
       ! satderivative = sLinearSaturationDerivative(tp, bt, h(n), this%satomega)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coef = -sy * this%dis%area(n) * thick * satderivative * weight
 
       idiag = this%dis%con%ia(n)
@@ -457,9 +473,9 @@ contains
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step(s)
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         ! TODO: Add a sy_buffer to store previous time step sy values if integratechanges is true.
         ! For now just use oldsy for all previous time steps when integratechanges is true.
@@ -512,7 +528,6 @@ contains
 
   subroutine sto_fn_ss(this, hold_buffer, hnew, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
@@ -548,7 +563,7 @@ contains
       !
       ! -- aquifer saturation
       h => hnew
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
 
       if (this%istor_coef == 0) then
         stor_coef = this%ss(n) * thick
@@ -599,9 +614,9 @@ contains
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         if (this%iconvert(n) /= 0) then
           saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
@@ -643,7 +658,6 @@ contains
 
   subroutine sto_fn_sy(this, hold_buffer, hnew, matrix_sln, idxglo, rhs)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     type(CircularBufferType), intent(in) :: hold_buffer !< concentration at end of second last time step
@@ -683,7 +697,7 @@ contains
       satderivative = &
         sQuadraticSaturationDerivative(tp, bt, h(n), this%satomega)
       ! satderivative = sLinearSaturationDerivative(tp, bt, h(n), this%satomega)
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
       coef = -sy * this%dis%area(n) * thick * satderivative * weight
 
       idiag = this%dis%con%ia(n)
@@ -702,9 +716,9 @@ contains
       rhs(n) = rhs(n) + rrhs
       !
       ! -- Right-hand side contribution from previous time step(s)
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         ! TODO: Add a sy_buffer to store previous time step sy values if integratechanges is true.
         ! For now just use oldsy for all previous time steps when integratechanges is true.
@@ -750,7 +764,6 @@ contains
 
   subroutine sto_cq_ss(this, flowja, hnew, hold_buffer)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< connection flows
@@ -786,7 +799,7 @@ contains
       if (this%ibound(n) <= 0) cycle
 
       h => hnew
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
 
       rate = DZERO
       ! -- aquifer elevations and thickness
@@ -843,9 +856,9 @@ contains
       rate = rate - rrhs
       !
       ! -- Right-hand side contribution from previous time step
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         if (this%iconvert(n) /= 0) then
           saturation = sQuadraticSaturation(tp, bt, h(n), this%satomega)
@@ -892,7 +905,6 @@ contains
 
   subroutine sto_cq_sy(this, flowja, hnew, hold_buffer)
     ! -- modules
-    use TdisModule, only: time_scheme
     ! -- dummy variables
     class(GwfStoType) :: this !< GwfStoType object
     real(DP), dimension(:), contiguous, intent(inout) :: flowja !< connection flows
@@ -927,7 +939,7 @@ contains
       if (this%iconvert(n) == 0) cycle
 
       h => hnew
-      weight = time_scheme%get_weight(1)
+      weight = this%time_scheme%get_weight(1)
 
       rrhs = DZERO
       rate = DZERO
@@ -957,9 +969,9 @@ contains
       rate = rate - rrhs
       !
       ! -- Right-hand side contribution from previous time step(s)
-      do step_idx = 1, time_scheme%get_time_iteration_steps()
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
         h => hold_buffer%rget(step_idx)
-        weight = time_scheme%get_weight(step_idx + 1)
+        weight = this%time_scheme%get_weight(step_idx + 1)
 
         if (this%integratechanges == 0) then
           sy => this%sy(n)
@@ -1132,6 +1144,7 @@ contains
     call mem_allocate(this%integratechanges, 'INTEGRATECHANGES', &
                       this%memoryPath)
     call mem_allocate(this%intvs, 'INTVS', this%memoryPath)
+    call mem_allocate(this%itimescheme, 'ITIMESCHEME', this%memoryPath)
     !
     ! -- initialize scalars
     this%istor_coef = 0
@@ -1141,6 +1154,7 @@ contains
     this%satomega = DZERO
     this%integratechanges = 0
     this%intvs = 0
+    this%itimescheme = IZERO
   end subroutine allocate_scalars
 
   !> @ brief Allocate package arrays
@@ -1194,7 +1208,7 @@ contains
   !<
   subroutine source_options(this)
     ! -- modules
-    use ConstantsModule, only: LENMEMPATH
+    use ConstantsModule, only: LENMEMPATH, LENVARNAME
     use MemoryManagerModule, only: mem_setptr, get_isize
     use MemoryManagerExtModule, only: mem_set_value
     use CharacterStringModule, only: CharacterStringType
@@ -1207,6 +1221,8 @@ contains
     type(CharacterStringType), dimension(:), pointer, contiguous :: tvs6_mempaths
     character(len=LINELENGTH) :: tvs6_filename
     character(len=LENMEMPATH) :: tvs6_mempath
+    character(len=LENVARNAME), dimension(2) :: scheme = &
+      &[character(len=LENVARNAME) :: 'EULER', 'BDF2']
     !
     ! -- source package input
     call mem_set_value(this%ipakcb, 'IPAKCB', this%input_mempath, found%ipakcb)
@@ -1218,6 +1234,8 @@ contains
                        found%iorig_ss)
     call mem_set_value(this%iconf_ss, 'ICONF_SS', this%input_mempath, &
                        found%iconf_ss)
+    call mem_set_value(this%itimescheme, 'TIME_SCHEME', this%input_mempath, &
+                       scheme, found%time_scheme)
     !
     if (found%ipakcb) then
       this%ipakcb = -1
@@ -1236,6 +1254,16 @@ contains
       call tvs_cr(this%tvs, this%name_model, tvs6_mempath, this%intvs, this%iout)
     end if
     !
+    if (found%time_scheme) then
+      if (this%itimescheme == IZERO) then
+        call store_error('Unknown time scheme was specified. &
+                         &Must be "EULER" or "BDF2"')
+        call store_error_filename(this%input_fname)
+      else
+        ! scheme parameters are 0 based
+        this%itimescheme = this%itimescheme - 1
+      end if
+    end if
     if (found%iconf_ss) then
       this%iorig_ss = 0
     end if

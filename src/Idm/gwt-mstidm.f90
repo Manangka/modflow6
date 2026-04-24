@@ -22,6 +22,7 @@ module GwtMstInputModule
     logical :: sorbatefile = .false.
     logical :: export_ascii = .false.
     logical :: export_nc = .false.
+    logical :: time_scheme = .false.
     logical :: porosity = .false.
     logical :: decay = .false.
     logical :: decay_sorbed = .false.
@@ -229,6 +230,25 @@ module GwtMstInputModule
     )
 
   type(InputParamDefinitionType), parameter :: &
+    gwtmst_time_scheme = InputParamDefinitionType &
+    ( &
+    'GWT', & ! component
+    'MST', & ! subcomponent
+    'OPTIONS', & ! block
+    'TIME_SCHEME', & ! tag name
+    'TIME_SCHEME', & ! fortran variable
+    'STRING', & ! type
+    '', & ! shape
+    'time discretization scheme', & ! longname
+    .false., & ! required
+    .false., & ! developmode
+    .false., & ! multi-record
+    .false., & ! preserve case
+    .false., & ! layered
+    .false. & ! timeseries
+    )
+
+  type(InputParamDefinitionType), parameter :: &
     gwtmst_porosity = InputParamDefinitionType &
     ( &
     'GWT', & ! component
@@ -355,6 +375,7 @@ module GwtMstInputModule
     gwtmst_sorbatefile, &
     gwtmst_export_ascii, &
     gwtmst_export_nc, &
+    gwtmst_time_scheme, &
     gwtmst_porosity, &
     gwtmst_decay, &
     gwtmst_decay_sorbed, &
