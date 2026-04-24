@@ -221,7 +221,7 @@ module GwfStoInputModule
     'TIME_SCHEME', & ! fortran variable
     'STRING', & ! type
     '', & ! shape
-    'time discretization scheme', & ! longname
+    'time integration scheme', & ! longname
     .false., & ! required
     .false., & ! developmode
     .false., & ! multi-record

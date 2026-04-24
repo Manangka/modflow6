@@ -15,15 +15,6 @@ module TimeSchemeInterfaceModule
   end type TimeSchemeInterface
 
   abstract interface
-    subroutine update_delt(this, new_delt)
-      import :: TimeSchemeInterface
-      import :: DP
-      class(TimeSchemeInterface), intent(inout) :: this
-      real(DP), intent(in) :: new_delt
-    end subroutine update_delt
-  end interface
-
-  abstract interface
     function get_num_steps(this) result(num_steps)
       import :: TimeSchemeInterface
       import :: I4B
