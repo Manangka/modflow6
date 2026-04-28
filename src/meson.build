@@ -378,6 +378,7 @@ modflow_sources = files(
     'Solution' / 'ParticleTracker' / 'Particle' / 'Events' / 'DroppedEvent.f90',
     'Timing' / 'ats.f90',
     'Timing' / 'tdis.f90',
+    'Timing' / 'AtsFactory.F90',
     'Timing' / 'TimeScheme' / 'BDF2Scheme.f90',
     'Timing' / 'TimeScheme' / 'ImplicitEulerScheme.f90',
     'Timing' / 'TimeScheme' / 'TimeSchemeEnum.f90',
@@ -523,7 +524,8 @@ modflow_mpi_sources = files(
   'Distributed' / 'MpiRouter.f90',
   'Distributed' / 'MpiRunControl.F90',
   'Distributed' / 'MpiWorld.f90',
-  'Solution' / 'ParallelSolution.f90'
+  'Solution' / 'ParallelSolution.f90',
+  'Timing' / 'ParallelAts.f90'
 )
 
 modflow_netcdf_sources = files(
