@@ -13,7 +13,8 @@ def get_source_files(src_path, verbose=False):
     extensions = ("*.[fF]", "*.[fF]9[05]", "*.inc")
     for ext in extensions:
         for path in src_path.glob(f"**/{ext}"):
-            yield path.absolute()
+            if "generated" not in path.parts:
+                yield path.absolute()
 
 
 def get_extra_files(extrafiles_path, src_path, extra_path, verbose=False):
@@ -36,6 +37,8 @@ def get_msvs_files(vfproj_path, src_path, extra_path=None, verbose=False):
     root = tree.getroot()
     for f in root.iter("File"):
         path = f.attrib["RelativePath"].replace("\\", "/")
+        if "generated" in path.split("/"):
+            continue
         yield (
             (
                 extra_path

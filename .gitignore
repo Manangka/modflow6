@@ -78,6 +78,7 @@ dist
 
 mod_temp/
 obj_temp/
+msvs/generated/
 src_temp/
 pymake/dependencies/
 pymake/dependencies_std/

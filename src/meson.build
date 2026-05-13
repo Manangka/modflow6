@@ -490,7 +490,6 @@ modflow_sources = files(
     'Utilities' / 'SimVariables.f90',
     'Utilities' / 'SimStages.f90',
     'Utilities' / 'Sim.f90',
-    'Utilities' / 'STLVecInt.f90',
     'Utilities' / 'STLStackInt.f90',
     'Utilities' / 'Table.f90',
     'Utilities' / 'TableTerm.f90',
@@ -546,6 +545,10 @@ if with_netcdf
 endif
 
 mf6_external = static_library('mf6_external', external_libraries)
+
+# Generated templated sources
+subdir('Utilities/STLContainers')
+modflow_sources += generated_sources
 
 message('MODFLOW 6 executable name: ' + buildname)
 

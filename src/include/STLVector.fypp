@@ -1,16 +1,18 @@
-module STLVecIntModule
-  use KindModule, only: I4B, LGP
+#:mute
+#:def VECTOR_TEMPLATE(NAME, TYPE)
+
+module STLVec${NAME}$Module
+  use KindModule, only: I4B, DP, LGP
   use SimModule, only: ustop
   use ArrayHandlersModule, only: ExpandArray
   implicit none
   private
-  public :: STLVecInt
+  public :: STLVec${NAME}$
 
   integer(I4B), parameter :: defaultInitialCapacity = 4
 
-  ! This is a dynamic vector type for integers
-  type :: STLVecInt
-    integer(I4B), private, allocatable :: values(:) !< the internal array for storage
+  type :: STLVec${NAME}$
+    ${TYPE}$, private, allocatable :: values(:) !< the internal array for storage
     integer(I4B) :: size !< the number of elements
     integer(I4B), private :: capacity !< the reserved storage
   contains
@@ -31,12 +33,12 @@ module STLVecIntModule
     procedure, pass(this) :: get_values !< returns a copy of the values
     ! private
     procedure, private, pass(this) :: expand
-  end type STLVecInt
+  end type STLVec${NAME}$
 
 contains ! module routines
 
   subroutine init(this, capacity)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
     integer(I4B), intent(in), optional :: capacity ! the initial capacity, when given
 
     if (present(capacity)) then
@@ -51,8 +53,8 @@ contains ! module routines
   end subroutine init
 
   subroutine push_back(this, newValue)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B) :: newValue
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$ :: newValue
     ! check capacity
     if (this%size + 1 > this%capacity) then
       call this%expand()
@@ -64,8 +66,8 @@ contains ! module routines
   end subroutine push_back
 
   subroutine push_back_unique(this, newValue)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B) :: newValue
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$ :: newValue
 
     if (.not. this%contains(newValue)) then
       call this%push_back(newValue)
@@ -74,20 +76,20 @@ contains ! module routines
   end subroutine push_back_unique
 
   subroutine pop(this)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
 
     if (this%size > 0) then
       this%size = this%size - 1
     else
-      write (*, *) 'STLVecInt exception: cannot pop from an empty array'
+      write (*, *) 'STLVec${NAME}$ exception: cannot pop from an empty array'
       call ustop()
     end if
 
   end subroutine
 
   subroutine add_array(this, array)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B), dimension(:), pointer :: array
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$, dimension(:), pointer :: array
     ! local
     integer(I4B) :: i
 
@@ -98,8 +100,8 @@ contains ! module routines
   end subroutine add_array
 
   subroutine add_array_unique(this, array)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B), dimension(:), pointer :: array
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$, dimension(:), pointer :: array
     ! local
     integer(I4B) :: i
 
@@ -112,21 +114,21 @@ contains ! module routines
   end subroutine add_array_unique
 
   function at(this, idx) result(value)
-    class(STLVecInt), intent(in) :: this
+    class(STLVec${NAME}$), intent(in) :: this
     integer(I4B), intent(in) :: idx
-    integer(I4B) :: value
+    ${TYPE}$ :: value
 
     value = this%values(idx)
 
   end function at
 
   function at_safe(this, idx) result(value)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
     integer(I4B), intent(in) :: idx
-    integer(I4B) :: value
+    ${TYPE}$ :: value
 
     if (idx > this%size) then
-      write (*, *) 'STLVecInt exception: access out of bounds, index ', idx, &
+      write (*, *) 'STLVec${NAME}$ exception: access out of bounds, index ', idx, &
         ' exceeds actual size (', this%size, ')'
       call ustop()
     end if
@@ -135,16 +137,16 @@ contains ! module routines
   end function at_safe
 
   subroutine set(this, idx, value)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
     integer(I4B), intent(in) :: idx
-    integer(I4B) :: value
+    ${TYPE}$ :: value
 
     this%values(idx) = value
 
   end subroutine set
 
   subroutine clear(this)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
 
     ! really, this is all there is to it...
     this%size = 0
@@ -152,9 +154,9 @@ contains ! module routines
   end subroutine clear
 
   subroutine shrink_to_fit(this)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
     ! local
-    integer(I4B), allocatable :: tempValues(:)
+    ${TYPE}$, allocatable :: tempValues(:)
     integer(I4B) :: i, newSize
 
     if (this%size == this%capacity) then
@@ -180,14 +182,14 @@ contains ! module routines
   end subroutine shrink_to_fit
 
   subroutine destroy(this)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
 
     if (allocated(this%values)) then
       deallocate (this%values)
       this%size = 0
       this%capacity = 0
     else
-      write (*, *) 'STLVecInt exception: cannot delete an unallocated array'
+      write (*, *) 'STLVec${NAME}$ exception: cannot delete an unallocated array'
       call ustop()
     end if
 
@@ -196,7 +198,7 @@ contains ! module routines
   ! expand the array with the given strategy, at
   ! least by 1
   subroutine expand(this)
-    class(STLVecInt), intent(inout) :: this
+    class(STLVec${NAME}$), intent(inout) :: this
     integer(I4B) :: increment
 
     ! expansion strategy
@@ -208,8 +210,8 @@ contains ! module routines
 
   ! check if the element is already present
   function contains(this, val) result(res)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B) :: val
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$ :: val
     logical(LGP) :: res
     ! local
     integer(I4B) :: i
@@ -227,8 +229,8 @@ contains ! module routines
   !> @brief Return index of first occurrence,
   !< returns -1 when not present
   function get_index(this, val) result(idx)
-    class(STLVecInt), intent(inout) :: this
-    integer(I4B) :: val
+    class(STLVec${NAME}$), intent(inout) :: this
+    ${TYPE}$ :: val
     integer(I4B) :: idx
     ! local
     integer(I4B) :: i
@@ -244,11 +246,14 @@ contains ! module routines
   end function get_index
 
   function get_values(this) result(values)
-    class(STLVecInt), intent(in) :: this
-    integer(I4B), dimension(:), allocatable :: values
+    class(STLVec${NAME}$), intent(in) :: this
+    ${TYPE}$, dimension(:), allocatable :: values
 
     values = this%values(1:this%size)
 
   end function get_values
 
-end module STLVecIntModule
+end module STLVec${NAME}$Module
+
+#:enddef
+#:endmute

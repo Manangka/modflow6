@@ -1,0 +1,4 @@
+
+#:include "STLVector.fypp"
+
+$:VECTOR_TEMPLATE("Dbl", "real(DP)")
