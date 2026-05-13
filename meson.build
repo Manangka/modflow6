@@ -285,6 +285,9 @@ if is_parallel_build and build_machine.system() == 'windows'
                                 include_directories: petsc_incdir)  
 endif
 
+# Tool used to generate templated Fortran sources
+fypp = find_program('fypp', required : true)
+
 # build mf6 and libmf6
 buildname = get_option('buildname')
 subdir('src')

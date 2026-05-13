@@ -12,7 +12,7 @@
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64"/>
 			<Tool Name="VFCustomBuildTool"/>
 			<Tool Name="VFPreLinkEventTool"/>
-			<Tool Name="VFPreBuildEventTool"/>
+			<Tool Name="VFPreBuildEventTool" CommandLine="(if not exist &quot;$(ProjectDir)generated&quot; mkdir &quot;$(ProjectDir)generated&quot;) &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecInt.fypp $(ProjectDir)generated&#92;STLVecInt.f90 &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecDbl.fypp $(ProjectDir)generated&#92;STLVecDbl.f90"/>
 			<Tool Name="VFPostBuildEventTool"/>
 		</Configuration>
 		<Configuration Name="Release|x64" UseCompiler="ifortCompiler" OutputDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" IntermediateDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" ConfigurationType="typeStaticLibrary">
@@ -22,7 +22,7 @@
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64"/>
 			<Tool Name="VFCustomBuildTool"/>
 			<Tool Name="VFPreLinkEventTool"/>
-			<Tool Name="VFPreBuildEventTool"/>
+			<Tool Name="VFPreBuildEventTool" CommandLine="(if not exist &quot;$(ProjectDir)generated&quot; mkdir &quot;$(ProjectDir)generated&quot;) &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecInt.fypp $(ProjectDir)generated&#92;STLVecInt.f90 &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecDbl.fypp $(ProjectDir)generated&#92;STLVecDbl.f90"/>
 			<Tool Name="VFPostBuildEventTool"/>
 		</Configuration>
 		<Configuration Name="Debug|Win32" UseCompiler="ifortCompiler" OutputDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" IntermediateDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" ConfigurationType="typeStaticLibrary">
@@ -32,7 +32,7 @@
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true"/>
 			<Tool Name="VFCustomBuildTool"/>
 			<Tool Name="VFPreLinkEventTool"/>
-			<Tool Name="VFPreBuildEventTool"/>
+			<Tool Name="VFPreBuildEventTool" CommandLine="(if not exist &quot;$(ProjectDir)generated&quot; mkdir &quot;$(ProjectDir)generated&quot;) &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecInt.fypp $(ProjectDir)generated&#92;STLVecInt.f90 &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecDbl.fypp $(ProjectDir)generated&#92;STLVecDbl.f90"/>
 			<Tool Name="VFPostBuildEventTool"/>
 		</Configuration>
 		<Configuration Name="Release|Win32" UseCompiler="ifortCompiler" OutputDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" IntermediateDirectory="obj_temp\$(ProjectName)\$(PlatformName)\$(ConfigurationName)" ConfigurationType="typeStaticLibrary">
@@ -42,7 +42,7 @@
 			<Tool Name="VFMidlTool" SuppressStartupBanner="true"/>
 			<Tool Name="VFCustomBuildTool"/>
 			<Tool Name="VFPreLinkEventTool"/>
-			<Tool Name="VFPreBuildEventTool"/>
+			<Tool Name="VFPreBuildEventTool" CommandLine="(if not exist &quot;$(ProjectDir)generated&quot; mkdir &quot;$(ProjectDir)generated&quot;) &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecInt.fypp $(ProjectDir)generated&#92;STLVecInt.f90 &amp;&amp; $(ProjectDir)..&#92;.pixi&#92;envs&#92;default&#92;Scripts&#92;fypp.EXE -I $(ProjectDir)..&#92;src&#92;include $(ProjectDir)..&#92;src&#92;Utilities&#92;STLContainers&#92;STLVecDbl.fypp $(ProjectDir)generated&#92;STLVecDbl.f90"/>
 			<Tool Name="VFPostBuildEventTool"/>
 		</Configuration>
 	</Configurations>
@@ -930,12 +930,15 @@
 				<File RelativePath="..\src\Utilities\sort.f90"/>
 				<File RelativePath="..\src\Utilities\Sparse.f90"/>
 				<File RelativePath="..\src\Utilities\STLStackInt.f90"/>
-				<File RelativePath="..\src\Utilities\STLVecInt.f90"/>
 				<File RelativePath="..\src\Utilities\StringList.f90"/>
 				<File RelativePath="..\src\Utilities\Table.f90"/>
 				<File RelativePath="..\src\Utilities\TableTerm.f90"/>
 				<File RelativePath="..\src\Utilities\Timer.f90"/>
 				<File RelativePath="..\src\Utilities\version.f90"/>
+				<Filter Name="STLContainers">
+					<File RelativePath="generated\STLVecInt.f90"/>
+					<File RelativePath="generated\STLVecDbl.f90"/>
+				</Filter>
 			</Filter>
 			<File RelativePath="..\src\mf6core.f90"/>
 			<File RelativePath="..\src\mf6lists.f90"/>

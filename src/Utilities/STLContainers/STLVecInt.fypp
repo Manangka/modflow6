@@ -1,0 +1,5 @@
+
+#:include "STLVector.fypp"
+
+$:VECTOR_TEMPLATE("Int", "integer(I4B)")
+
