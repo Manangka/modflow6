@@ -191,6 +191,14 @@ contains
     min_phi => this%min_max_phi%get_min(iup)
     max_phi => this%min_max_phi%get_max(iup)
 
+    !
+    ! Apply TVD clamp to virtual node concentration
+    ! Comment out the lines below to disable the clamp and recover 
+    ! the original Darwish method. The clamp is especially important 
+    ! for grids where the original method does not guarantee monotonicity, 
+    ! such as highly skewed or non-orthogonal grids.
+    !
+
     if (c_virtual > max_phi) then
       c_virtual = max_phi
     end if

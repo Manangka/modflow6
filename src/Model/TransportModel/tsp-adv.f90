@@ -10,6 +10,7 @@ module TspAdvModule
   ! -- Gradient schemes
   use IGradient, only: IGradientType
   use LeastSquaresGradientModule, only: LeastSquaresGradientType
+  use LeastSquaresGradientBoundaryModule, only: LeastSquaresGradientBoundaryType
   use CachedGradientModule, only: CachedGradientType
   ! -- Interpolation schemes
   use InterpolationSchemeInterfaceModule, only: InterpolationSchemeInterface, &
@@ -140,7 +141,16 @@ contains
       this%face_interpolation = &
         TVDSchemeType(this%dis, this%fmi, this%ibound)
     case (ADV_SCHEME_UTVD)
+      ! 
+      ! Switch between boundary and internal gradient for utvd scheme
+      ! by commenting/uncommenting the lines below
+      !
+      ! The internal gradient is computed with only the information of the adjacent cells. 
+      ! The boundary gradient adds a no zero gradient boundary condition to the 
+      ! reconstruction matrix of the least squares gradient.
+      !
       gradient = LeastSquaresGradientType(this%dis)
+      ! gradient = LeastSquaresGradientBoundaryType(this%dis)
       this%gradient = CachedGradientType(gradient, this%dis)
       this%face_interpolation = &
         UTVDSchemeType(this%dis, this%fmi, this%gradient)
