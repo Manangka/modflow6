@@ -404,7 +404,7 @@ contains
     ! -- local
     type(SimTdisParamFoundType) :: found
     character(len=LINELENGTH), dimension(6) :: time_units = &
-      &[character(len=LINELENGTH) :: 'UNDEFINED', 'SECONDS', 'MINUTES', 'HOURS', &
+      &[character(len=LINELENGTH) :: 'UNKNOWN', 'SECONDS', 'MINUTES', 'HOURS', &
                                      'DAYS', 'YEARS']
     character(len=LINELENGTH) :: fname
     ! -- formats
