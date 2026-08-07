@@ -16,6 +16,11 @@ netcdf = "NETCDF"
 
 [[items]]
 section = "features"
+subsection = "advanced"
+description = "Added a new IMPLICIT option to the Lake (LAK) Package that solves each lake stage as an additional unknown in the groundwater flow matrix instead of by the default substitution-iteration solver. The implicit formulation typically converges in far fewer outer iterations and can solve problems for which the default formulation fails to converge, while giving equivalent results. It makes the coefficient matrix asymmetric and therefore requires the BICGSTAB linear acceleration in the Iterative Model Solution (IMS). A lake that is too poorly conditioned to solve as a matrix unknown is automatically solved by the default substitution solver instead, so the option is as robust as the default formulation."
+
+[[items]]
+section = "features"
 subsection = "stress"
 description = "Added a new AUTO\\_FLOW\\_REDUCE\\_AUXNAME option to the Well (WEL) Package. When AUTO\\_FLOW\\_REDUCE is active, the pumping rate of a well is smoothly reduced as the cell head drops toward the cell bottom, using a single global turnoff threshold for all wells in the package. The new AUTO\\_FLOW\\_REDUCE\\_AUXNAME option names an auxiliary variable whose value sets the turnoff threshold for each well individually, so different wells in the same package can begin reducing their pumping at different heads. The per-well auxiliary value overrides the global AUTO\\_FLOW\\_REDUCE value and is interpreted the same way: as a length above the cell bottom when FLOW\\_REDUCTION\\_LENGTH is specified, or otherwise as a fraction of the cell thickness. If AUTO\\_FLOW\\_REDUCE\\_AUXNAME is specified without AUTO\\_FLOW\\_REDUCE the option is ignored with a warning, and an error is reported if the named auxiliary variable does not exist."
 
@@ -28,6 +33,11 @@ description = "The default values for DENSITY\\_WATER, HEAT\\_CAPACITY\\_WATER, 
 section = "fixes"
 subsection = "stress"
 description = "For the Well (WEL) Package, when AUTO\\_FLOW\\_REDUCE is active and FLOW\\_REDUCTION\\_LENGTH is specified, the Newton-Raphson linearization incorrectly used the cell thickness instead of the unit length (1.0) when computing the turnoff threshold. This produced an incorrect Jacobian term and inconsistent behavior between the standard and Newton formulations. The thickness calculation in the Newton code path now respects the FLOW\\_REDUCTION\\_LENGTH option, consistent with the non-Newton code path."
+
+[[items]]
+section = "fixes"
+subsection = "stress"
+description = "Errors detected while reading the OPTIONS block of the Drain (DRN) and Well (WEL) Packages, such as an AUXDEPTHNAME or AUTO\\_FLOW\\_REDUCE\\_AUXNAME that names an auxiliary variable that does not exist, were reported for the input file of the next package read rather than for the file that contained the error. These errors are now reported for the DRN or WEL input file."
 
 [[items]]
 section = "fixes"
@@ -123,3 +133,64 @@ description = "The Multi-Aquifer Well (MAW) Package now supports non-vertical (s
 section = "features"
 subsection = "stress"
 description = "Grid array-based input (READARRAYGRID) is now available for the CHD, WEL, DRN, RIV, and GHB stress packages.  Grid array-based input allows stress package data to be specified as full-grid arrays using the DNODATA value (3.0E+30) to identify inactive cells.  Auxiliary variable arrays persist across stress periods if not re-specified, and CONSTANT array input is supported for any array after the first in a period block."
+
+[[items]]
+section = "fixes"
+subsection = "internal"
+description = "Fixed a bug in the GWT DSP Package and GWE CND Package affecting the rotation of the velocity-dependent dispersion tensor. The horizontal rotation angle did not preserve the sign of the y-component of flow, which could incorrectly orient the longitudinal and transverse dispersion directions for some flow directions, especially flow with a negative y-component. This could cause excessive apparent transverse plume spreading or insufficient longitudinal spreading. Results may change for transport models using velocity-dependent dispersion in affected flow-direction cases."
+
+[[items]]
+section = "features"
+subsection = "basic"
+description = "The CRS option, which specifies a real-world coordinate reference system (CRS) for a model grid, for example an EPSG code, authority string, or Open Geospatial Consortium Well-Known Text (WKT) specification, is supported for all discretization package types. When CRS is specified, the simulation writes a version 2 binary grid (GRB) file so that the CRS can be included, allowing postprocessors to locate the grid in space."
+
+[[items]]
+section = "features"
+subsection = "netcdf"
+description = "Improved CF-1.11 and UGRID-1.0 compliance for NetCDF output. A new ``crs\\_wkt`` option in the NCF utility package accepts a WKT2 (ISO 19162:2019) string for the projection variable; ``grid\\_mapping\\_name`` is now derived and written automatically. The vertical dimension is renamed from ``z`` to ``layer`` with standard CF axis attributes. UGRID face variables now carry ``mesh``, ``location``, and ``coordinates`` unconditionally."
+
+[[items]]
+section = "fixes"
+subsection = "advanced"
+description = "When the Streamflow Routing (SFR) Package STORAGE option was active, a dry reach that was gaining (groundwater head above the streambed top) with little or no inflow could remain dry and receive no groundwater discharge, instead of rewetting from groundwater as it does when the STORAGE option is not used. This has been fixed so that a dry gaining reach rewets and receives groundwater discharge."
+
+
+[[items]]
+section = "fixes"
+subsection = "advanced"
+description = "The Multi-Aquifer Well (MAW) Package now damps well-head oscillations under the NEWTON UNDER\\_RELAXATION option, so wells with a single connection to a low hydraulic conductivity cell that could previously oscillate between outer iterations and fail to converge are able to settle. Convergence is also withheld until a damped well's pumping rate stops changing, so a model does not converge while a well is still adjusting. Models that do not use NEWTON UNDER\\_RELAXATION are unaffected."
+
+[[items]]
+section = "features"
+subsection = "advanced"
+description = "When a simulation fails to converge, the Multi-Aquifer Well (MAW) Package now warns for any active extraction well whose requested rate exceeds the maximum the connected aquifer can supply with the well head drawn down to the bottom of the well. The warning names the well, reports the requested and maximum available rates, and suggests reducing the rate, using RATE\\_SCALING, or reviewing the connection conductance."
+
+[[items]]
+section = "fixes"
+subsection = "advanced"
+description = "The Multi-Aquifer Well (MAW) Package well storage term previously held water even when the well head dropped below the bottom of the well. Storage now smoothly goes to zero as the well head approaches the well bottom, removing this unphysical storage; results are unchanged while the well head remains above the well bottom."
+
+[[items]]
+section = "fixes"
+subsection = "advanced"
+description = "For the Multi-Aquifer Well (MAW) Package, the Newton-Raphson formulation added a nonzero saturation-derivative matrix term for connections to confined (non-convertible) cells, where the saturation is constant and the derivative should be zero. This term is now set to zero, making the Newton matrix consistent with the calculated flow and improving convergence when a confined cell's head drops into the well screen interval; converged results are unaffected."
+
+[[items]]
+section = "fixes"
+subsection = "internal"
+description = "A new ELASTIC\\_INELASTIC\\_SMOOTHING option was added to the Skeletal Storage, Compaction, and Subsidence (CSUB) Package. In the Newton-Raphson formulation the skeletal specific storage of a delay interbed cell switched abruptly from the elastic to the inelastic value when the effective stress exceeded the preconsolidation stress, so a delay cell held near the preconsolidation stress could oscillate between the two values from one outer iteration to the next and fail to converge. The new option smooths the elastic to inelastic transition over a small effective-stress window and adds the corresponding term to the Newton formulation, improving convergence. Across the smoothing window the reported elastic and inelastic storage and compaction components are partitioned by the smoothing weight so they blend continuously rather than switching abruptly; the total is unchanged. The option is disabled by default, so existing results are unchanged."
+
+[[items]]
+section = "features"
+subsection = "advanced"
+description = "The Skeletal Storage, Compaction, and Subsidence (CSUB) Package previously terminated when the calculated effective stress became small or negative in the effective-stress formulation, where the skeletal specific storage varies as the inverse of the effective stress and is unbounded as the effective stress approaches zero. The effective stress used to calculate the specific storage is now not allowed to fall below a small fraction (0.001) of the geostatic stress, which bounds the specific storage and allows the simulation to continue. The active behavior is reported in the CSUB package settings. A note is written to the model listing file for each time step with a negative effective stress, and a warning reporting the total number of affected time steps is written at the end of the simulation. Negative effective stress typically occurs in uppermost cells where simulated water levels rise above land surface. The head-based formulation is unaffected. The deprecated STRICT\\_EFFECTIVE\\_STRESS option restores the previous terminate-on-negative-stress behavior."
+
+[[items]]
+section = "fixes"
+subsection = "advanced"
+description = "The Skeletal Storage, Compaction, and Subsidence (CSUB) Package terminated when the summed interbed thickness in a cell exceeded the cell thickness, even when the difference was a numerical-roundoff artifact of the input precision. When the excess is within a small fraction (1e-5) of the cell thickness, the interbed thicknesses in the cell are now proportionally scaled to fit and the simulation continues. A larger excess is still an error."
+
+[[items]]
+section = "fixes"
+subsection = "basic"
+description = "The BMI get\\_version, get\\_component\\_name, and get\\_grid\\_type functions assigned the converted C string to a character array longer than the string itself. The assignment is not conforming, which left the amount of the caller's buffer that is written up to the compiler. The assignments were corrected to write only the string and its null terminator."

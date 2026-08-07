@@ -161,6 +161,9 @@ autotest/notebooks/
 **.DS_Store
 # pixi environments
 .pixi
+.notes
 
 **/*.lock
 doc/ReleaseNotes/develop.tex
+
+agent
