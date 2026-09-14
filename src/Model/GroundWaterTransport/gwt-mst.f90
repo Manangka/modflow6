@@ -31,10 +31,10 @@ module GwtMstModule
   public :: GwtMstType
   public :: mst_cr
   !
-  integer(I4B), parameter :: NBDITEMS = 4
+  integer(I4B), parameter :: NBDITEMS = 5
   character(len=LENBUDTXT), dimension(NBDITEMS) :: budtxt
-  data budtxt/' STORAGE-AQUEOUS', '   DECAY-AQUEOUS', &
-    '  STORAGE-SORBED', '    DECAY-SORBED'/
+  data budtxt/' STORAGE-AQUEOUS','   DECAY-AQUEOUS', &
+    '  STORAGE-SORBED', '    DECAY-SORBED', '  BDF-CORRECTION'/
 
   !> @brief Enumerator that defines the decay options
   !<
@@ -57,6 +57,7 @@ module GwtMstModule
     real(DP), dimension(:), pointer, contiguous :: thetam => null() !< mobile porosity defined as volume mobile voids per volume of aquifer
     real(DP), dimension(:), pointer, contiguous :: volfracim => null() !< sum of all immobile domain volume fractions
     real(DP), dimension(:), pointer, contiguous :: ratesto => null() !< rate of mobile storage
+    real(DP), dimension(:), pointer, contiguous :: ratecor => null() !< rate correction for mobile storage
     !
     ! -- decay
     integer(I4B), pointer :: idcy => null() !< order of decay rate (0:none, 1:first, 2:zero)
@@ -92,6 +93,7 @@ module GwtMstModule
     procedure :: mst_fc_dcy_srb
     procedure :: mst_cq
     procedure :: mst_cq_sto
+    procedure :: mst_cq_sto_corr
     procedure :: mst_cq_dcy
     procedure :: mst_cq_srb
     procedure :: mst_cq_dcy_srb
@@ -525,8 +527,11 @@ contains
     real(DP), pointer, dimension(:) :: cold !< concentration at end of last time step
     cold => cold_buffer%rget(1)
     !
-    ! - storage
+    ! -- storage
     call this%mst_cq_sto(nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
+    !
+    ! -- time correction
+    call this%mst_cq_sto_corr(nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     !
     ! -- decay
     if (this%idcy /= DECAY_OFF) then
@@ -553,8 +558,75 @@ contains
   !!
   !!  Method to calculate storage terms for the package.
   !<
+  subroutine mst_cq_sto_corr(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
+    ! -- modules
+    ! -- dummy
+    class(GwtMstType) :: this !< GwtMstType object
+    integer(I4B), intent(in) :: nodes !< number of nodes
+    real(DP), intent(in), dimension(nodes) :: cnew !< concentration at end of this time step
+    type(CircularBufferType), intent(in) :: cold_buffer !< concentration at previous time steps
+    type(CircularBufferType), intent(in) :: gwfsat_buffer !< gwfsat at previous time steps
+    real(DP), dimension(:), contiguous, intent(inout) :: flowja !< flow between two connected control volumes
+    ! -- local
+    integer(I4B) :: n
+    integer(I4B) :: idiag
+    real(DP) :: correction
+    real(DP) :: Vcell, Vwater
+    real(DP) :: coeff
+    real(DP), pointer :: cold(:)
+    integer(I4B) :: step_idx
+    real(DP) :: weight
+    real(DP), pointer :: gwfsat(:)
+    !
+    ! -- Calculate storage change
+    do n = 1, nodes
+      this%ratecor(n) = DZERO
+      correction = 0.0_dp
+      !
+      ! -- skip if transport inactive
+      if (this%ibound(n) <= 0) cycle
+
+      Vcell = this%dis%area(n) * (this%dis%top(n) - this%dis%bot(n))
+      !
+      ! -- Matrix contribution for storage term
+      gwfsat => this%fmi%gwfsat
+
+      Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
+      weight = this%time_scheme%get_weight(1)
+      coeff = Vwater * weight
+
+      correction = correction - coeff * cnew(n)
+      !
+      ! -- Right-hand side contribution from previous time steps
+      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
+        cold => cold_buffer%rget(step_idx)
+        gwfsat => gwfsat_buffer%rget(step_idx)
+
+        Vwater = Vcell * gwfsat(n) * this%thetam(n)
+        weight = this%time_scheme%get_weight(step_idx + 1)
+        coeff = Vwater * weight
+
+        correction = correction - coeff * cold(n)
+      end do
+
+      !
+      ! Calculate correction
+      this%ratecor(n) = correction - this%ratesto(n)
+
+      idiag = this%dis%con%ia(n)
+      flowja(idiag) = flowja(idiag) + correction
+
+    end do
+  end subroutine mst_cq_sto_corr
+
+  !> @ brief Calculate storage terms for package
+  !!
+  !!  Method to calculate storage terms for the package.
+  !<
   subroutine mst_cq_sto(this, nodes, cnew, cold_buffer, gwfsat_buffer, flowja)
     ! -- modules
+
+    use TdisModule, only: delt
     ! -- dummy
     class(GwtMstType) :: this !< GwtMstType object
     integer(I4B), intent(in) :: nodes !< number of nodes
@@ -569,13 +641,13 @@ contains
     real(DP) :: Vcell, Vwater
     real(DP) :: coeff
     real(DP), pointer :: cold(:)
-    integer(I4B) :: step_idx
     real(DP) :: weight
     real(DP), pointer :: gwfsat(:)
     !
     ! -- Calculate storage change
     do n = 1, nodes
       this%ratesto(n) = DZERO
+
       rate = 0.0_dp
       !
       ! -- skip if transport inactive
@@ -587,22 +659,20 @@ contains
       gwfsat => this%fmi%gwfsat
 
       Vwater = Vcell * this%fmi%gwfsat(n) * this%thetam(n)
-      weight = this%time_scheme%get_weight(1)
+      weight = 1.0_dp / delt
       coeff = Vwater * weight
 
       rate = rate - coeff * cnew(n)
       !
       ! -- Right-hand side contribution from previous time steps
-      do step_idx = 1, this%time_scheme%get_time_iteration_steps()
-        cold => cold_buffer%rget(step_idx)
-        gwfsat => gwfsat_buffer%rget(step_idx)
+      cold => cold_buffer%rget(1)
+      gwfsat => gwfsat_buffer%rget(1)
 
-        Vwater = Vcell * gwfsat(n) * this%thetam(n)
-        weight = this%time_scheme%get_weight(step_idx + 1)
-        coeff = Vwater * weight
+      Vwater = Vcell * gwfsat(n) * this%thetam(n)
+      weight = - 1.0_dp / delt
+      coeff = Vwater * weight
 
-        rate = rate - coeff * cold(n)
-      end do
+      rate = rate - coeff * cold(n)
 
       this%ratesto(n) = rate
       idiag = this%dis%con%ia(n)
@@ -882,6 +952,14 @@ contains
     call rate_accumulator(this%ratesto, rin, rout)
     call model_budget%addentry(rin, rout, delt, budtxt(1), &
                                isuppress_output, rowlabel=this%packName)
+    
+    !
+    ! -- sto correction
+    if (this%itimescheme /= TIME_SCHEME_EULER) then
+      call rate_accumulator(this%ratecor, rin, rout)
+      call model_budget%addentry(rin, rout, delt, budtxt(5), &
+                                 isuppress_output, rowlabel=this%packName)
+    end if
     !
     ! -- dcy
     if (this%idcy /= DECAY_OFF) then
@@ -1012,6 +1090,7 @@ contains
       call mem_deallocate(this%thetam)
       call mem_deallocate(this%volfracim)
       call mem_deallocate(this%ratesto)
+      call mem_deallocate(this%ratecor)
       call mem_deallocate(this%idcy)
       call mem_deallocate(this%decay)
       call mem_deallocate(this%decay_sorbed)
@@ -1093,6 +1172,7 @@ contains
     call mem_allocate(this%thetam, nodes, 'THETAM', this%memoryPath)
     call mem_allocate(this%volfracim, nodes, 'VOLFRACIM', this%memoryPath)
     call mem_allocate(this%ratesto, nodes, 'RATESTO', this%memoryPath)
+    call mem_allocate(this%ratecor, nodes, 'RATECOR', this%memoryPath)
     !
     ! -- dcy
     if (this%idcy == DECAY_OFF) then
