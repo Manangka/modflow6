@@ -36,13 +36,11 @@ module mf6bmi
   implicit none
 
   integer(c_int), bind(C, name="ISTDOUTTOFILE") :: istdout_to_file = 1 !< output control: =0 to screen, >0 to file
-  !DIR$ ATTRIBUTES DLLEXPORT :: istdout_to_file
 
 contains
 
   function bmi_get_component_name(name) result(bmi_status) &
     bind(C, name="get_component_name")
-    !DIR$ ATTRIBUTES DLLEXPORT :: bmi_get_component_name
     ! -- dummy variables
     character(kind=c_char), intent(inout) :: name(BMI_LENCOMPONENTNAME)
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -66,7 +64,6 @@ contains
   !! process for that.
   !<
   function bmi_initialize() result(bmi_status) bind(C, name="initialize")
-    !DIR$ ATTRIBUTES DLLEXPORT :: bmi_initialize
     ! -- dummy variables
     integer(kind=c_int) :: bmi_status !< BMI status code
     ! -- local variables
@@ -95,7 +92,6 @@ contains
   !! to the simulation's end time is reached.
   !<
   function bmi_update() result(bmi_status) bind(C, name="update")
-    !DIR$ ATTRIBUTES DLLEXPORT :: bmi_update
     ! -- dummy variables
     integer(kind=c_int) :: bmi_status !< BMI status code
     ! -- local variables
@@ -112,7 +108,6 @@ contains
   !! call should match the call to bmi_initialize()
   !<
   function bmi_finalize() result(bmi_status) bind(C, name="finalize")
-    !DIR$ ATTRIBUTES DLLEXPORT :: bmi_finalize
     ! -- modules
     use SimVariablesModule, only: iforcestop
     ! -- dummy variables
@@ -133,7 +128,6 @@ contains
   !<
   function get_start_time(start_time) result(bmi_status) &
     bind(C, name="get_start_time")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_start_time
     ! -- dummy variables
     real(kind=c_double), intent(out) :: start_time !< start time
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -149,7 +143,6 @@ contains
   !! equal to the total runtime.
   !<
   function get_end_time(end_time) result(bmi_status) bind(C, name="get_end_time")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_end_time
     ! -- modules
     use TdisModule, only: totalsimtime
     ! -- dummy variables
@@ -168,7 +161,6 @@ contains
   !<
   function get_current_time(current_time) result(bmi_status) &
     bind(C, name="get_current_time")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_current_time
     ! -- modules
     use TdisModule, only: totim
     ! -- dummy variables
@@ -187,7 +179,6 @@ contains
   !<
   function get_time_step(time_step) result(bmi_status) &
     bind(C, name="get_time_step")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_time_step
     ! -- modules
     use TdisModule, only: delt
     ! -- dummy variables
@@ -205,7 +196,6 @@ contains
   !<
   function get_input_item_count(count) result(bmi_status) &
     bind(C, name="get_input_item_count")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_input_item_count
     ! -- dummy variables
     integer(kind=c_int), intent(out) :: count !< the number of input variables
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -222,7 +212,6 @@ contains
   !<
   function get_output_item_count(count) result(bmi_status) &
     bind(C, name="get_output_item_count")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_output_item_count
     ! -- dummy variables
     integer(kind=c_int), intent(out) :: count !< the number of output variables
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -249,7 +238,6 @@ contains
   !<
   function get_input_var_names(c_names) result(bmi_status) &
     bind(C, name="get_input_var_names")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_input_var_names
     ! -- dummy variables
     character(kind=c_char, len=1), intent(inout) :: c_names(*) !< array with memory paths for input variables
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -284,7 +272,6 @@ contains
   !<
   function get_output_var_names(c_names) result(bmi_status) &
     bind(C, name="get_output_var_names")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_output_var_names
     ! -- dummy variables
     character(kind=c_char, len=1), intent(inout) :: c_names(*) !< array with memory paths for output variables
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -315,7 +302,6 @@ contains
   !<
   function get_var_itemsize(c_var_address, var_size) result(bmi_status) &
     bind(C, name="get_var_itemsize")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_itemsize
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     integer(kind=c_int), intent(out) :: var_size !< size of the element in bytes
@@ -342,7 +328,6 @@ contains
   !<
   function get_var_nbytes(c_var_address, var_nbytes) result(bmi_status) &
     bind(C, name="get_var_nbytes")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_nbytes
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     integer(kind=c_int), intent(out) :: var_nbytes !< size in bytes
@@ -379,7 +364,6 @@ contains
   !<
   function get_value_double(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_double")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_double
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -456,7 +440,6 @@ contains
   !<
   function get_value_int(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_int")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_int
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -531,7 +514,6 @@ contains
   !<
   function get_value_bool(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_bool")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_bool
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -579,7 +561,6 @@ contains
   !< supported
   function get_value_string(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_string")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_string
     ! -- modules
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
@@ -658,7 +639,6 @@ contains
   !<
   function get_value(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value
     ! -- modules
     use ConstantsModule, only: LENMEMTYPE
     ! -- dummy variables
@@ -707,7 +687,6 @@ contains
   !<
   function get_value_ptr(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_ptr")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_ptr
     ! -- modules
     use ConstantsModule, only: LENMEMTYPE
     ! -- dummy variables
@@ -754,7 +733,6 @@ contains
   !<
   function get_value_ptr_double(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_ptr_double")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_ptr_double
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     type(c_ptr), intent(inout) :: c_arr_ptr !< pointer to the array
@@ -808,7 +786,6 @@ contains
   !<
   function get_value_ptr_int(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_ptr_int")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_ptr_int
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     type(c_ptr), intent(inout) :: c_arr_ptr !< pointer to the array
@@ -861,7 +838,6 @@ contains
   !<
   function get_value_ptr_bool(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="get_value_ptr_bool")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_value_ptr_bool
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     type(c_ptr), intent(inout) :: c_arr_ptr !< pointer to the array
@@ -903,7 +879,6 @@ contains
   !<
   function set_value(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="set_value")
-    !DIR$ ATTRIBUTES DLLEXPORT :: set_value
     ! -- modules
     use ConstantsModule, only: LENMEMTYPE
     ! -- dummy variables
@@ -949,7 +924,6 @@ contains
   !<
   function set_value_double(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="set_value_double")
-    !DIR$ ATTRIBUTES DLLEXPORT :: set_value_double
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -1022,7 +996,6 @@ contains
   !<
   function set_value_int(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="set_value_int")
-    !DIR$ ATTRIBUTES DLLEXPORT :: set_value_int
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -1095,7 +1068,6 @@ contains
   !<
   function set_value_bool(c_var_address, c_arr_ptr) result(bmi_status) &
     bind(C, name="set_value_bool")
-    !DIR$ ATTRIBUTES DLLEXPORT :: set_value_bool
     ! -- modules
     use MemorySetHandlerModule, only: on_memory_set
     ! -- dummy variables
@@ -1152,7 +1124,6 @@ contains
   !< 'UNKNOWN' is assigned.
   function get_var_type(c_var_address, c_var_type) result(bmi_status) &
     bind(C, name="get_var_type")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_type
     ! -- modules
     use ConstantsModule, only: LENMEMTYPE
     ! -- dummy variables
@@ -1192,7 +1163,6 @@ contains
   !<
   function get_var_rank(c_var_address, c_var_rank) result(bmi_status) &
     bind(C, name="get_var_rank")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_rank
     ! -- dummy variables
     character(kind=c_char), intent(in) :: c_var_address(*) !< memory address string of the variable
     integer(kind=c_int), intent(out) :: c_var_rank !< variable rank
@@ -1230,7 +1200,6 @@ contains
   !<
   function get_var_shape(c_var_address, c_var_shape) result(bmi_status) &
     bind(C, name="get_var_shape")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_shape
     ! -- modules
     use ConstantsModule, only: MAXMEMRANK
     ! -- dummy variables

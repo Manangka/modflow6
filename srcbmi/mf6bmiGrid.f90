@@ -20,7 +20,6 @@ contains
   ! Get the grid identifier for the given variable.
   function get_var_grid(c_var_address, var_grid) result(bmi_status) &
     bind(C, name="get_var_grid")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_grid
     ! -- modules
     use ListsModule, only: basemodellist
     use BaseModelModule, only: BaseModelType, GetBaseModelFromList
@@ -59,7 +58,6 @@ contains
   ! Get the grid type as a string.
   function get_grid_type(grid_id, grid_type) result(bmi_status) &
     bind(C, name="get_grid_type")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_type
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     character(kind=c_char), intent(inout) :: grid_type(BMI_LENGRIDTYPE)
@@ -89,7 +87,6 @@ contains
   ! Get number of dimensions of the computational grid.
   function get_grid_rank(grid_id, grid_rank) result(bmi_status) &
     bind(C, name="get_grid_rank")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_rank
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: grid_rank
@@ -117,7 +114,6 @@ contains
   ! Get the total number of elements in the computational grid.
   function get_grid_size(grid_id, grid_size) result(bmi_status) &
     bind(C, name="get_grid_size")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_size
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: grid_size
@@ -151,7 +147,6 @@ contains
   ! Get the dimensions of the computational grid.
   function get_grid_shape(grid_id, grid_shape) result(bmi_status) &
     bind(C, name="get_grid_shape")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_shape
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: grid_shape(*)
@@ -180,7 +175,6 @@ contains
   ! Provides an array (whose length is the number of rows) that gives the x-coordinate for each row.
   function get_grid_x(grid_id, grid_x) result(bmi_status) &
     bind(C, name="get_grid_x")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_x
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     real(kind=c_double), intent(out) :: grid_x(*)
@@ -224,7 +218,6 @@ contains
   ! Provides an array (whose length is the number of rows) that gives the y-coordinate for each row.
   function get_grid_y(grid_id, grid_y) result(bmi_status) &
     bind(C, name="get_grid_y")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_y
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     real(kind=c_double), intent(out) :: grid_y(*)
@@ -268,7 +261,6 @@ contains
   ! Get the number of nodes in an unstructured grid.
   function get_grid_node_count(grid_id, count) result(bmi_status) &
     bind(C, name="get_grid_node_count")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_node_count
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: count
@@ -291,7 +283,6 @@ contains
   ! Get the number of faces in an unstructured grid.
   function get_grid_face_count(grid_id, count) result(bmi_status) &
     bind(C, name="get_grid_face_count")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_face_count
     ! -- modules
     use ListsModule, only: basemodellist
     use NumericalModelModule, only: NumericalModelType, GetNumericalModelFromList
@@ -321,7 +312,6 @@ contains
   ! Get the face-node connectivity.
   function get_grid_face_nodes(grid_id, face_nodes) result(bmi_status) &
     bind(C, name="get_grid_face_nodes")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_face_nodes
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: face_nodes(*)
@@ -356,7 +346,6 @@ contains
   ! Get the number of nodes for each face.
   function get_grid_nodes_per_face(grid_id, nodes_per_face) result(bmi_status) &
     bind(C, name="get_grid_nodes_per_face")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_grid_nodes_per_face
     ! -- dummy variables
     integer(kind=c_int), intent(in) :: grid_id
     integer(kind=c_int), intent(out) :: nodes_per_face(*)
