@@ -30,8 +30,15 @@ spec.loader.exec_module(generate_exports)
 # entities only available in parallel builds
 PARALLEL_ONLY = {"initialize_mpi"}
 
-# symbols defined by the GNU linker that may remain visible in a shared library
+# symbols that are not part of MODFLOW but may remain visible in the library:
+# defined by the GNU linker, or from the GCC runtime (libgcc) when it is linked
+# statically, e.g. emulated thread-local storage and nested function trampolines
 LINKER_SYMBOLS = {"_init", "_fini", "_edata", "_end", "__bss_start"}
+RUNTIME_PREFIXES = ("__emutls_", "__gcc_")
+
+
+def is_toolchain_symbol(name: str) -> bool:
+    return name in LINKER_SYMBOLS or name.startswith(RUNTIME_PREFIXES)
 
 
 def symbols(parallel: bool) -> dict[str, bool]:
@@ -243,7 +250,9 @@ def test_libmf6_dll_exports(targets):
     exports = libmf6_exports(targets)
     expected = set(symbols(parallel=False))
     missing = sorted(expected - exports)
-    unexpected = sorted(exports - expected - PARALLEL_ONLY - LINKER_SYMBOLS)
+    unexpected = sorted(
+        n for n in exports - expected - PARALLEL_ONLY if not is_toolchain_symbol(n)
+    )
     assert not missing, f"libmf6 does not export: {missing}"
     assert not unexpected, f"libmf6 exports names not in its C API: {unexpected}"
 
