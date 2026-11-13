@@ -102,7 +102,6 @@ contains
     bind(C, name="initialize_mpi")
     use MpiWorldModule
     use SimVariablesModule, only: simulation_mode
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_initialize_mpi
     ! -- dummy variables
     integer(kind=c_int) :: mpi_comm !< the Fortran communicator (as an integer)
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -128,7 +127,6 @@ contains
   !<
   function xmi_prepare_time_step(dt) result(bmi_status) &
     bind(C, name="prepare_time_step")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_prepare_time_step
     ! -- dummy variables
     real(kind=c_double), intent(in) :: dt !< time step
     integer(kind=c_int) :: bmi_status !< BMI status code
@@ -144,7 +142,6 @@ contains
   !! the calculate function on all solutions in there.
   !<
   function xmi_do_time_step() result(bmi_status) bind(C, name="do_time_step")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_do_time_step
     ! -- dummy variables
     integer(kind=c_int) :: bmi_status !< BMI status code
 
@@ -160,7 +157,6 @@ contains
   !<
   function xmi_finalize_time_step() result(bmi_status) &
     bind(C, name="finalize_time_step")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_finalize_time_step
     ! -- dummy variables
     integer(kind=c_int) :: bmi_status !< BMI status code
     ! -- local variables
@@ -186,7 +182,6 @@ contains
   !<
   function xmi_get_subcomponent_count(count) result(bmi_status) &
     bind(C, name="get_subcomponent_count")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_get_subcomponent_count
     ! -- modules
     use ListsModule, only: solutiongrouplist
     use SimVariablesModule, only: istdout
@@ -219,7 +214,6 @@ contains
   !<
   function xmi_prepare_solve(subcomponent_idx) result(bmi_status) &
     bind(C, name="prepare_solve")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_prepare_solve
     ! -- modules
     use ListsModule, only: solutiongrouplist
     use BaseSolutionModule, only: BaseSolutionType
@@ -260,7 +254,6 @@ contains
   !<
   function xmi_solve(subcomponent_idx, has_converged) result(bmi_status) &
     bind(C, name="solve")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_solve
     ! -- modules
     use BaseSolutionModule, only: BaseSolutionType
     use NumericalSolutionModule, only: NumericalSolutionType
@@ -305,7 +298,6 @@ contains
   !<
   function xmi_finalize_solve(subcomponent_idx) result(bmi_status) &
     bind(C, name="finalize_solve")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_finalize_solve
     ! -- modules
     use BaseSolutionModule, only: BaseSolutionType
     ! -- dummy variables
@@ -343,7 +335,6 @@ contains
   !<
   function xmi_get_version(mf_version) result(bmi_status) &
     bind(C, name="get_version")
-    !DIR$ ATTRIBUTES DLLEXPORT :: xmi_get_version
     ! -- modules
     use VersionModule, only: VERSIONNUMBER, IDEVELOPMODE
     ! -- dummy variables
@@ -366,7 +357,6 @@ contains
   function get_var_address(c_component_name, c_subcomponent_name, &
                            c_var_name, c_var_address) &
     result(bmi_status) bind(C, name="get_var_address")
-    !DIR$ ATTRIBUTES DLLEXPORT :: get_var_address
     ! -- modules
     use MemoryHelperModule, only: create_mem_path, create_mem_address
     use ConstantsModule, only: LENCOMPONENTNAME, LENVARNAME, LENMEMPATH, &
